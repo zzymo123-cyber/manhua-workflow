@@ -1,0 +1,6 @@
+GET status: 404
+GET body: {"detail":"Not Found"}
+
+PUT status: 404
+PUT body: {"detail":"Not Found"}
+

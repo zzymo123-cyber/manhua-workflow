@@ -1,0 +1,8 @@
+GET status: 200
+GET body: {"vidu_api_key":"***t123","wetoken_api_key":"","idealab_api_key":"","idealab_base_url":"https://api.idealab.com/v1","_has_vidu":true,"_has_wetoken":false,"_has_idealab":false}
+
+PUT status: 200
+PUT body: {"ok":true}
+
+PUT empty status: 200
+PUT empty body: {"ok":true}
