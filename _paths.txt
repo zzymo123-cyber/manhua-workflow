@@ -1,1 +1,0 @@
-//n/api/assets/{project_name}/{path}/n/api/chat/n/api/project/import/n/api/project/status/n/api/prompts/batch-generate/n/api/prompts/generate/n/api/settings/n/api/tasks/batch-submit/n/api/tasks/submit/n/api/tasks/{task_id}/retry/n

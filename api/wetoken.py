@@ -6,6 +6,8 @@ import time
 import httpx
 from pathlib import Path
 
+from api.errors import describe_exception, describe_remote_error
+
 try:
     from PIL import Image
 except ImportError:
@@ -81,14 +83,20 @@ def _push_to_github(local_path: str, filename: str) -> str:
 
 def upload_asset(api_key: str, public_url: str, name: str) -> str:
     """上传图片到 Wetoken 素材 API，返回 asset_id"""
-    resp = httpx.post(
-        f"{ASSET_URL}/createMedia",
-        headers=_headers(api_key),
-        json={"url": public_url, "name": name, "assetType": "Image",
-              "moderation": {"Strategy": "Skip"}},
-        timeout=30,
-    )
-    resp.raise_for_status()
+    try:
+        resp = httpx.post(
+            f"{ASSET_URL}/createMedia",
+            headers=_headers(api_key),
+            json={"url": public_url, "name": name, "assetType": "Image",
+                  "moderation": {"Strategy": "Skip"}},
+            timeout=30,
+        )
+        if not resp.is_success:
+            raise WetokenError(describe_remote_error("Wetoken", resp.status_code, _response_detail(resp)))
+    except WetokenError:
+        raise
+    except Exception as e:
+        raise WetokenError(describe_exception("Wetoken", e))
     data = resp.json()
     return data["Result"]["Id"]
 
@@ -233,13 +241,12 @@ def submit_video_task(
         "generate_audio": generate_audio,
         "watermark": watermark,
     }
-    resp = httpx.post(BASE_URL, headers=_headers(api_key), json=body, timeout=60)
+    try:
+        resp = httpx.post(BASE_URL, headers=_headers(api_key), json=body, timeout=60)
+    except Exception as e:
+        raise WetokenError(describe_exception("Wetoken", e))
     if not resp.is_success:
-        try:
-            err_detail = resp.json()
-        except Exception:
-            err_detail = resp.text
-        raise WetokenError(f"Wetoken API {resp.status_code}: {err_detail}")
+        raise WetokenError(describe_remote_error("Wetoken", resp.status_code, _response_detail(resp)))
     data = resp.json()
     if "id" not in data:
         raise WetokenError(f"Unexpected response: {data}")
@@ -251,8 +258,13 @@ def poll_task(api_key: str, task_id: str) -> dict:
     查询视频任务状态。
     返回: {"status": "pending"|"completed"|"failed", "video_url": str|None, "error": str|None}
     """
-    resp = httpx.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
-    resp.raise_for_status()
+    try:
+        resp = httpx.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
+        if not resp.is_success:
+            return {"status": "failed", "video_url": None,
+                    "error": describe_remote_error("Wetoken", resp.status_code, _response_detail(resp))}
+    except Exception as e:
+        return {"status": "failed", "video_url": None, "error": describe_exception("Wetoken", e)}
     data = resp.json()
     status = data.get("status", "")
 
@@ -272,3 +284,10 @@ def download_video(url: str, dest_path: Path) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     with open(dest_path, "wb") as f:
         f.write(resp.content)
+
+
+def _response_detail(resp) -> str:
+    try:
+        return json.dumps(resp.json(), ensure_ascii=False)
+    except Exception:
+        return resp.text[:300]

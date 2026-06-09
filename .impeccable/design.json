@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-09T00:00:00+08:00",
+  "title": "Design System: Manhua Workflow",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Production Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#eff6ff", "#bfdbfe", "#2563eb", "#1d4ed8"]
+      },
+      "neutral": {
+        "role": "neutral",
+        "displayName": "Production Neutral",
+        "canonical": "#f8f9fb",
+        "tonalRamp": ["#ffffff", "#f8f9fb", "#f1f3f5", "#e5e7eb", "#737b89", "#5f6673", "#1a1d23"]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "System UI",
+        "purpose": "Long-session product UI text and controls."
+      },
+      "mono": {
+        "displayName": "Prompt Mono",
+        "purpose": "Prompt and template editing only."
+      }
+    },
+    "elevation": {
+      "subtleSurface": "0 1px 3px rgba(0,0,0,0.06)",
+      "interactiveLift": "0 2px 8px rgba(0,0,0,0.08)",
+      "overlayLift": "0 6px 18px rgba(0,0,0,0.12)"
+    },
+    "motion": {
+      "fast": "150ms",
+      "standard": "200ms",
+      "rule": "Motion communicates state changes only and must respect prefers-reduced-motion."
+    },
+    "breakpoints": {
+      "mobile": "640px",
+      "tablet": "900px",
+      "desktop": "1200px"
+    },
+    "rules": [
+      "Accent color is functional, not decorative.",
+      "Surfaces are flat by default.",
+      "Status must not rely on color alone.",
+      "Avoid colored side stripes and arbitrary z-index values.",
+      "Errors must name the failing workflow stage."
+    ]
+  }
+}

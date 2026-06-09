@@ -1,4 +1,3 @@
-import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -102,7 +101,8 @@ c{编号},{时长}s,（第{格数}格，{shot}）
 
 class GenerateRequest(BaseModel):
     type: str  # character | scene | prop | storyboard | video
-    project_name: str
+    project_name: str = ""
+    project_path: str = ""
     name: Optional[str] = None
     appearance_seed: Optional[str] = None
     scene_key: Optional[str] = None
@@ -124,20 +124,59 @@ class BatchGenerateItem(BaseModel):
 
 
 class BatchGenerateRequest(BaseModel):
-    project_name: str
+    project_name: str = ""
+    project_path: str = ""
     items: list[BatchGenerateItem]
+
+
+def _require_project_dir(project_name: str = "", project_path: str = ""):
+    project_dir = pl.resolve_project_dir(project_name, project_path)
+    if not (project_dir / "pipeline.json").exists():
+        raise HTTPException(status_code=404, detail=f"项目不存在：{project_dir}")
+    return project_dir
+
+
+def _require_asset(data: dict, category: str, name: str | None, label: str) -> dict:
+    if not name:
+        raise HTTPException(status_code=400, detail=f"缺少{label}名称")
+    item = data.get("assets", {}).get(category, {}).get(name)
+    if item is None:
+        raise HTTPException(status_code=400, detail=f"未找到{label}: {name}")
+    return item
+
+
+def _require_storyboard(data: dict, scene_key: str | None) -> dict:
+    if not scene_key:
+        raise HTTPException(status_code=400, detail="缺少故事板场景 key")
+    board = data.get("storyboards", {}).get(scene_key)
+    if board is None:
+        raise HTTPException(status_code=400, detail=f"未找到故事板: {scene_key}")
+    return board
+
+
+def _require_completed_asset(data: dict, category: str, name: str, label: str) -> None:
+    info = data.get("assets", {}).get(category, {}).get(name)
+    if not info or info.get("status") != "completed":
+        raise HTTPException(status_code=400, detail=f"{label}「{name}」未完成")
+
+
+def _require_completed_storyboard(board: dict) -> None:
+    if board.get("board_status") != "completed":
+        raise HTTPException(status_code=400, detail="故事板尚未完成，无法生成视频提示词")
 
 
 @router.post("/batch-generate")
 async def batch_generate_prompts(req: BatchGenerateRequest):
     """批量生成提示词，逐个处理，返回每项结果"""
     api_key = get_api_key("IDEALAB_API_KEY")
-    project_dir = pl.get_project_root(req.project_name)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="缺少 ideaLAB API Key，请先在设置中配置")
+    _require_project_dir(req.project_name, req.project_path)
     results = []
     for item in req.items:
         try:
             single_req = GenerateRequest(
-                type=item.type, project_name=req.project_name,
+                type=item.type, project_name=req.project_name, project_path=req.project_path,
                 name=item.name, appearance_seed=item.appearance_seed,
                 scene_key=item.scene_key, characters=item.characters,
                 scene_location=item.scene_location, script_segment=item.script_segment,
@@ -145,6 +184,8 @@ async def batch_generate_prompts(req: BatchGenerateRequest):
             )
             result = await generate_prompt_endpoint(single_req)
             results.append({"name": item.name or item.scene_key or "", "ok": True, "prompt": result["prompt"]})
+        except HTTPException as e:
+            results.append({"name": item.name or item.scene_key or "", "ok": False, "error": e.detail})
         except Exception as e:
             results.append({"name": item.name or item.scene_key or "", "ok": False, "error": str(e)})
     return {"results": results}
@@ -198,38 +239,56 @@ def _save_video_parts(project_dir, scene_key: str, raw_prompt: str):
     pl.write_pipeline(project_dir, data)
 
 
+def _generate_prompt(api_key: str, system: str, user_msg: str) -> str:
+    try:
+        return llm.generate_prompt(api_key, system, user_msg)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ideaLAB API 错误: {e}")
+
+
 @router.post("/generate")
 async def generate_prompt_endpoint(req: GenerateRequest):
     api_key = get_api_key("IDEALAB_API_KEY")
-    project_dir = pl.get_project_root(req.project_name)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="缺少 ideaLAB API Key，请先在设置中配置")
+    project_dir = _require_project_dir(req.project_name, req.project_path)
+    data = pl.read_pipeline(project_dir)
     templates = pl.read_prompt_templates(project_dir)
 
     if req.type == "character":
+        _require_asset(data, "characters", req.name, "角色")
         system = templates.get("character", CHARACTER_SYSTEM)
         user_msg = f"角色名：{req.name}\n描述：{req.appearance_seed}"
-        prompt = llm.generate_prompt(api_key, system, user_msg)
+        prompt = _generate_prompt(api_key, system, user_msg)
         _save_draft_prompt(project_dir, "characters", req.name, prompt)
         return {"prompt": prompt}
 
     elif req.type == "scene":
+        _require_asset(data, "scenes", req.name, "场景")
         system = templates.get("scene", SCENE_SYSTEM)
         user_msg = f"场景名：{req.name}\n描述：{req.appearance_seed}"
-        prompt = llm.generate_prompt(api_key, system, user_msg)
+        prompt = _generate_prompt(api_key, system, user_msg)
         _save_draft_prompt(project_dir, "scenes", req.name, prompt)
         return {"prompt": prompt}
 
     elif req.type == "prop":
+        _require_asset(data, "props", req.name, "道具")
         system = templates.get("prop", PROP_SYSTEM)
         user_msg = f"道具名：{req.name}\n描述：{req.appearance_seed}"
-        prompt = llm.generate_prompt(api_key, system, user_msg)
+        prompt = _generate_prompt(api_key, system, user_msg)
         _save_draft_prompt(project_dir, "props", req.name, prompt)
         return {"prompt": prompt}
 
     elif req.type == "storyboard":
+        _require_storyboard(data, req.scene_key)
         char_info = []
         for char_name in (req.characters or []):
+            _require_completed_asset(data, "characters", char_name, "角色")
             optimized = pl.get_prompt_optimized(project_dir, "characters", char_name)
             char_info.append({"name": char_name, "appearance": optimized or char_name})
+        if req.scene_location:
+            scene_category = "scenes" if req.scene_location in data.get("assets", {}).get("scenes", {}) else "props"
+            _require_completed_asset(data, scene_category, req.scene_location, "场景/道具")
         scene_optimized = pl.get_prompt_optimized(project_dir, "scenes_props", req.scene_location or "")
         user_msg = (
             f"场景：{req.scene_key}\n"
@@ -237,26 +296,27 @@ async def generate_prompt_endpoint(req: GenerateRequest):
             f"场景色调：{scene_optimized or ''}\n"
             f"剧本段落：{req.script_segment or ''}"
         )
-        prompt = llm.generate_prompt(api_key, templates.get("storyboard", STORYBOARD_SYSTEM), user_msg)
+        prompt = _generate_prompt(api_key, templates.get("storyboard", STORYBOARD_SYSTEM), user_msg)
         _save_draft_prompt(project_dir, "storyboard", req.scene_key, prompt)
         return {"prompt": prompt}
 
     elif req.type == "video":
+        board = _require_storyboard(data, req.scene_key)
+        _require_completed_storyboard(board)
         board_meta_dir = project_dir / "storyboards" / (req.scene_key or "")
         panels = req.panels or []
         board_optimized = ""
         if board_meta_dir.exists():
-            import json
-            meta_path = board_meta_dir / "meta.json"
-            if meta_path.exists():
-                with open(meta_path, encoding="utf-8") as f:
-                    meta = json.load(f)
+            meta = pl.get_meta(project_dir, "storyboards", req.scene_key or "")
+            if meta:
                 primary = meta.get("primary_image")
                 for v in meta.get("versions", []):
                     if v.get("filename") == primary:
                         board_optimized = v.get("prompt", {}).get("optimized", "")
                         if not panels:
                             panels = v.get("panels", [])
+        if not panels:
+            raise HTTPException(status_code=400, detail="缺少故事板 panels，无法生成视频提示词")
 
         user_msg = (
             f"故事板名：{req.scene_key}\n"
@@ -264,7 +324,7 @@ async def generate_prompt_endpoint(req: GenerateRequest):
             f"panels（9格）：{panels}\n"
             f"剧本台词/动作行：{req.script_segment or ''}"
         )
-        prompt = llm.generate_prompt(api_key, templates.get("video", VIDEO_SYSTEM), user_msg)
+        prompt = _generate_prompt(api_key, templates.get("video", VIDEO_SYSTEM), user_msg)
         # 解析分段并写入 pipeline.json 的 video_parts
         _save_video_parts(project_dir, req.scene_key, prompt)
         return {"prompt": prompt, "raw": prompt}

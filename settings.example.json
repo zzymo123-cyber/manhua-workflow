@@ -1,0 +1,10 @@
+{
+  "vidu_api_key": "",
+  "wetoken_api_key": "",
+  "idealab_api_key": "",
+  "idealab_base_url": "https://api.idealab.com/v1",
+  "gh_token": "",
+  "gh_owner": "",
+  "gh_repo": "",
+  "recent_projects": []
+}

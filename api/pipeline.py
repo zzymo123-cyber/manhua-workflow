@@ -5,11 +5,71 @@ from pathlib import Path
 VIDU_STUDIO_ROOT = Path.home() / "Desktop" / "vidu_studio"
 
 
+class ProjectFileError(Exception):
+    """Raised when a project JSON file cannot be read or written."""
+
+    def __init__(self, path: Path, detail: str, status_code: int):
+        self.path = path
+        self.detail = detail
+        self.status_code = status_code
+        super().__init__(f"{detail}：{path}")
+
+
+class ProjectFileReadError(ProjectFileError):
+    """Raised when a project JSON file exists but cannot be read."""
+
+    def __init__(self, path: Path, detail: str):
+        super().__init__(path, detail, 400)
+
+
+class ProjectFileWriteError(ProjectFileError):
+    """Raised when a project JSON file cannot be written safely."""
+
+    def __init__(self, path: Path, detail: str):
+        super().__init__(path, detail, 500)
+
+
+class PipelineReadError(ProjectFileReadError):
+    """Raised when pipeline.json exists but cannot be read as a project pipeline."""
+
+
+def _read_json_file(path: Path, label: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ProjectFileReadError(path, f"{label} 不是有效 JSON（第 {exc.lineno} 行，第 {exc.colno} 列）") from exc
+    except OSError as exc:
+        raise ProjectFileReadError(path, f"无法读取 {label}: {exc}") from exc
+
+
+def _write_json_file(path: Path, label: str, data: dict) -> None:
+    tmp = path.with_suffix(".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except (TypeError, OSError) as exc:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise ProjectFileWriteError(path, f"无法写入 {label}: {exc}") from exc
+
+
 def get_project_root(project_name: str) -> Path:
     p = Path(project_name)
     if p.is_absolute():
         return p
     return VIDU_STUDIO_ROOT / project_name
+
+
+def resolve_project_dir(project_name: str = "", project_path: str = "") -> Path:
+    """Resolve explicit project_path first, then legacy project_name."""
+    if project_path:
+        return Path(project_path)
+    return get_project_root(project_name)
 
 
 def _pipeline_path(project_dir: Path) -> Path:
@@ -18,17 +78,16 @@ def _pipeline_path(project_dir: Path) -> Path:
 
 def read_pipeline(project_dir: Path) -> dict:
     path = _pipeline_path(project_dir)
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        return _read_json_file(path, "pipeline.json")
+    except ProjectFileReadError as exc:
+        raise PipelineReadError(exc.path, exc.detail) from exc
 
 
 def write_pipeline(project_dir: Path, data: dict) -> None:
     """原子写入：先写 .tmp 再 rename"""
     path = _pipeline_path(project_dir)
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    _write_json_file(path, "pipeline.json", data)
 
 
 def _meta_dir(project_dir: Path, category: str, name: str) -> Path:
@@ -39,8 +98,7 @@ def get_meta(project_dir: Path, category: str, name: str) -> dict | None:
     meta_path = _meta_dir(project_dir, category, name) / "meta.json"
     if not meta_path.exists():
         return None
-    with open(meta_path, encoding="utf-8") as f:
-        return json.load(f)
+    return _read_json_file(meta_path, "meta.json")
 
 
 def write_meta(project_dir: Path, category: str, name: str, data: dict) -> None:
@@ -48,10 +106,7 @@ def write_meta(project_dir: Path, category: str, name: str, data: dict) -> None:
     meta_dir = _meta_dir(project_dir, category, name)
     meta_dir.mkdir(parents=True, exist_ok=True)
     path = meta_dir / "meta.json"
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    _write_json_file(path, "meta.json", data)
 
 
 def get_asset_image_path(project_dir: Path, category: str, name: str, filename: str) -> Path:
@@ -102,18 +157,14 @@ def read_prompt_templates(project_dir: Path) -> dict:
     """读取 prompt_templates.json，不存在则返回默认值"""
     path = project_dir / "prompt_templates.json"
     if path.exists():
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+        return _read_json_file(path, "prompt_templates.json")
     return _get_prompt_template_defaults()
 
 
 def write_prompt_templates(project_dir: Path, data: dict) -> None:
     """原子写入 prompt_templates.json"""
     path = project_dir / "prompt_templates.json"
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    _write_json_file(path, "prompt_templates.json", data)
 
 
 def get_prompt_template_defaults() -> dict:

@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -40,7 +41,10 @@ def read_settings() -> dict:
 
 
 def write_settings(data: dict) -> None:
-    SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = SETTINGS_PATH.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp_path, SETTINGS_PATH)
 
 
 def get_api_key(key_name: str) -> str:
@@ -73,7 +77,7 @@ async def get_settings():
         "_has_vidu": bool(s["vidu_api_key"]),
         "_has_wetoken": bool(s["wetoken_api_key"]),
         "_has_idealab": bool(s["idealab_api_key"]),
-        "_has_gh": bool(s.get("gh_token", "")),
+        "_has_gh": all(str(s.get(k, "")).strip() for k in ("gh_token", "gh_owner", "gh_repo")),
     }
 
 

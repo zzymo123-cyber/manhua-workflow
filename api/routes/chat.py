@@ -1,20 +1,29 @@
 import json
 import datetime
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
 from api import llm, pipeline as pl
 from api.routes.settings import get_api_key
+from api.video_params import VideoParamError, normalize_video_duration, normalize_video_ratio
 
 router = APIRouter()
 
 
 class ChatRequest(BaseModel):
-    project_name: str
+    project_name: str = ""
+    project_path: str = ""
     message: str
     history: list[dict] = []
     current_scene_key: Optional[str] = None
+
+
+def _require_project_dir(project_name: str = "", project_path: str = ""):
+    project_dir = pl.resolve_project_dir(project_name, project_path)
+    if not (project_dir / "pipeline.json").exists():
+        raise HTTPException(status_code=404, detail=f"项目不存在：{project_dir}")
+    return project_dir
 
 
 # ── 摘要构建 ──────────────────────────────────────────────────────────────────
@@ -31,8 +40,9 @@ def _asset_summary(assets: dict) -> list[dict]:
     return result
 
 
-def _build_system_prompt(project_name: str, scene_key: Optional[str]) -> str:
-    project_dir = pl.get_project_root(project_name)
+def _build_system_prompt(project_name: str, project_path: str, scene_key: Optional[str]) -> str:
+    project_dir = pl.resolve_project_dir(project_name, project_path)
+    project_ref = project_path or project_name
     try:
         pipeline_data = pl.read_pipeline(project_dir)
     except Exception:
@@ -52,7 +62,7 @@ def _build_system_prompt(project_name: str, scene_key: Optional[str]) -> str:
             "title": b.get("script_title", k),
             "board_status": b.get("board_status", "needed"),
             "draft_preview": draft[:100] + ("..." if len(draft) > 100 else ""),
-            "video_parts": [{"part": p["part"], "status": p.get("video_status", "needed")} for p in vp],
+            "video_parts": [{"part": p.get("part"), "status": p.get("video_status", "needed")} for p in vp],
         })
 
     # 当前选中场景传完整详情
@@ -87,7 +97,7 @@ panels：{json.dumps(panels, ensure_ascii=False)}
         submitted_hint = f"\n【注意】以下资产正在生成中：{', '.join(submitted_items)}。修改其草稿不影响当前进行中的任务，需告知用户。\n"
 
     summary = json.dumps({
-        "project": pipeline_data.get("project", project_name),
+        "project": pipeline_data.get("project", project_ref),
         "characters": char_summary,
         "scenes": scene_summary,
         "props": prop_summary,
@@ -129,9 +139,9 @@ panels：{json.dumps(panels, ensure_ascii=False)}
 
 # ── 读取完整提示词 ─────────────────────────────────────────────────────────────
 
-def _get_full_prompt(project_name: str, target: str, name: str) -> str:
+def _get_full_prompt(project_name: str, project_path: str, target: str, name: str) -> str:
     """读取指定资产的完整 draft_prompt"""
-    project_dir = pl.get_project_root(project_name)
+    project_dir = pl.resolve_project_dir(project_name, project_path)
     try:
         data = pl.read_pipeline(project_dir)
     except Exception:
@@ -150,7 +160,7 @@ def _get_full_prompt(project_name: str, target: str, name: str) -> str:
 
 # ── 执行 actions ──────────────────────────────────────────────────────────────
 
-def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
+def _execute_actions(project_name: str, project_path: str, actions: list[dict]) -> list[dict]:
     """
     执行写操作类 action，跳过 get_full_prompt（由两步循环处理）。
     返回每个 action 的执行结果，供前端显示工具调用小条。
@@ -159,7 +169,7 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
     if not actions:
         return results
 
-    project_dir = pl.get_project_root(project_name)
+    project_dir = pl.resolve_project_dir(project_name, project_path)
     try:
         data = pl.read_pipeline(project_dir)
     except Exception:
@@ -194,7 +204,7 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
             elif target == "video_part" and name:
                 part_num = action.get("part")
                 for p in data.get("storyboards", {}).get(name, {}).get("video_parts", []):
-                    if p["part"] == part_num:
+                    if p.get("part") == part_num:
                         p["draft_prompt"] = value
                         ok = True
             if ok:
@@ -209,23 +219,33 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
             target = action.get("target")
             field = action.get("field")
             value = action.get("value")
-            if target == "video" and name and field:
-                data["storyboards"].setdefault(name, {})[f"video_{field}"] = value
+            ok = target == "video" and name in data.get("storyboards", {}) and field in {"duration", "ratio"}
+            if ok:
+                try:
+                    value = normalize_video_duration(value) if field == "duration" else normalize_video_ratio(value)
+                except VideoParamError as exc:
+                    results.append({"action": act, "name": name, "ok": False,
+                                     "label": f"参数更新失败：{exc}"})
+                    continue
+                data["storyboards"][name][f"video_{field}"] = value
                 changed = True
                 results.append({"action": act, "name": name, "ok": True,
                                  "label": f"已更新「{name}」{field}={value}"})
+            else:
+                results.append({"action": act, "name": name, "ok": False,
+                                 "label": f"参数更新失败：未找到「{name}」或字段不支持"})
 
         elif act == "generate_prompt":
             # 调用提示词生成路由逻辑（复用现有函数）
             target = action.get("target")
-            result_label = _do_generate_prompt(project_name, target, name)
-            results.append({"action": act, "target": target, "name": name, "ok": True,
+            ok, result_label = _do_generate_prompt(project_name, project_path, target, name)
+            results.append({"action": act, "target": target, "name": name, "ok": ok,
                              "label": result_label})
 
         elif act == "submit_task":
             target = action.get("target")
             part = action.get("part")
-            ok, label = _do_submit_task(project_name, data, target, name, part)
+            ok, label = _do_submit_task(project_name, project_path, data, target, name, part)
             if ok:
                 changed = True
             results.append({"action": act, "target": target, "name": name, "ok": ok, "label": label})
@@ -237,93 +257,209 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
     return results
 
 
-def _do_generate_prompt(project_name: str, target: str, name: str) -> str:
+def _do_generate_prompt(project_name: str, project_path: str, target: str, name: str) -> tuple[bool, str]:
     """调用 LLM 生成提示词并写入 draft_prompt，返回操作描述"""
     from api.routes import prompts as prompts_module
-    from api.routes.prompts import GenerateRequest
-    import asyncio
 
     api_key = get_api_key("IDEALAB_API_KEY")
-    project_dir = pl.get_project_root(project_name)
+    if not api_key:
+        return False, "生成失败：缺少 ideaLAB API Key"
+
+    project_dir = pl.resolve_project_dir(project_name, project_path)
     try:
         data = pl.read_pipeline(project_dir)
     except Exception:
-        return f"生成失败：无法读取项目"
+        return False, "生成失败：无法读取项目"
 
     assets = data.get("assets", {})
-    seed = ""
+    category_by_target = {"character": "characters", "scene": "scenes", "prop": "props"}
+    category = category_by_target.get(target)
+    if not category:
+        return False, f"生成失败：不支持的目标类型 {target}"
+    item = assets.get(category, {}).get(name)
+    if not item:
+        return False, f"生成失败：未找到「{name}」"
+
+    seed = item.get("seed", "")
+    system_by_target = {
+        "character": prompts_module.CHARACTER_SYSTEM,
+        "scene": prompts_module.SCENE_SYSTEM,
+        "prop": prompts_module.PROP_SYSTEM,
+    }
     if target == "character":
-        seed = assets.get("characters", {}).get(name, {}).get("seed", "")
-    elif target in ("scene", "prop"):
-        seed = (assets.get("scenes", {}) or assets.get("props", {})).get(name, {}).get("seed", "")
+        user_msg = f"角色名：{name}\n描述：{seed}"
+    elif target == "scene":
+        user_msg = f"场景名：{name}\n描述：{seed}"
+    else:
+        user_msg = f"道具名：{name}\n描述：{seed}"
 
     try:
-        req = GenerateRequest(type=target, project_name=project_name, name=name, appearance_seed=seed)
-        # generate_prompt_endpoint 是 async，在同步上下文里用 asyncio.run 调用
-        result = asyncio.run(prompts_module.generate_prompt_endpoint(req))
-        return f"已重新生成「{name}」提示词"
+        templates = pl.read_prompt_templates(project_dir)
+        system = templates.get(target, system_by_target[target])
+        prompt = prompts_module._generate_prompt(api_key, system, user_msg)
+        prompts_module._save_draft_prompt(project_dir, category, name, prompt)
+        return True, f"已重新生成「{name}」提示词"
     except Exception as e:
-        return f"生成失败：{e}"
+        return False, f"生成失败：{e}"
 
 
-def _do_submit_task(project_name: str, data: dict, target: str, name: str, part) -> tuple[bool, str]:
+def _clear_fields(item: dict, fields: tuple[str, ...]):
+    for field in fields:
+        item.pop(field, None)
+
+
+def _has_prompt(prompt: str) -> bool:
+    return bool(prompt.strip())
+
+
+def _relative_path(project_dir, path) -> str:
+    return str(path.relative_to(project_dir)).replace("\\", "/")
+
+
+def _default_reference_path(project_dir, category: str, name: str):
+    return project_dir / category / name / f"{name}.png"
+
+
+def _asset_reference_path(project_dir, data: dict, category: str, name: str, label: str) -> tuple[str | None, str | None]:
+    info = data.get("assets", {}).get(category, {}).get(name)
+    if not info or info.get("status") != "completed":
+        return None, f"{label}「{name}」未完成"
+
+    file_category = "characters" if category == "characters" else "scenes_props"
+    path = pl.get_primary_image_path(project_dir, file_category, name) or _default_reference_path(project_dir, file_category, name)
+    if not path.exists():
+        return None, f"缺少参考图：{_relative_path(project_dir, path)}"
+    return str(path), None
+
+
+def _storyboard_reference_paths(project_dir, data: dict, board: dict) -> tuple[list[str], list[str]]:
+    paths = []
+    issues = []
+    for char in board.get("characters_in_scene", []):
+        path, issue = _asset_reference_path(project_dir, data, "characters", char, "角色")
+        if issue:
+            issues.append(issue)
+        elif path:
+            paths.append(path)
+
+    scene_name = board.get("scene_location")
+    if scene_name:
+        category = "scenes" if scene_name in data.get("assets", {}).get("scenes", {}) else "props"
+        path, issue = _asset_reference_path(project_dir, data, category, scene_name, "场景/道具")
+        if issue:
+            issues.append(issue)
+        elif path:
+            paths.append(path)
+
+    return paths, issues
+
+
+def _video_reference_paths(project_dir, data: dict, scene_key: str, board: dict) -> tuple[list[str], list[str]]:
+    paths, issues = _storyboard_reference_paths(project_dir, data, board)
+    if board.get("board_status") != "completed":
+        issues.append("故事板尚未完成")
+    else:
+        board_path = pl.get_primary_image_path(project_dir, "storyboards", scene_key) or _default_reference_path(project_dir, "storyboards", scene_key)
+        if not board_path.exists():
+            issues.append(f"缺少参考图：{_relative_path(project_dir, board_path)}")
+        else:
+            paths.append(str(board_path))
+    return paths, issues
+
+
+def _reference_issue_label(issues: list[str]) -> str:
+    preview = "，".join(issues[:3])
+    suffix = f" 等 {len(issues)} 项" if len(issues) > 3 else ""
+    return f"提交失败：前置参考未完成：{preview}{suffix}"
+
+
+def _do_submit_task(project_name: str, project_path: str, data: dict, target: str, name: str, part) -> tuple[bool, str]:
     """提交任务到 Vidu/Wetoken，返回 (成功, 描述)"""
     from api import vidu, wetoken
-    project_dir = pl.get_project_root(project_name)
+    project_dir = pl.resolve_project_dir(project_name, project_path)
     vidu_key = get_api_key("VIDU_API_KEY")
     wetoken_key = get_api_key("WETOKEN_API_KEY")
 
     try:
         if target == "character":
             prompt = data.get("assets", {}).get("characters", {}).get(name, {}).get("draft_prompt", "")
-            if not prompt:
+            if not _has_prompt(prompt):
                 return False, f"「{name}」没有提示词，无法提交"
+            if not vidu_key:
+                return False, "提交失败：缺少 Vidu API Key"
             result = vidu.submit_image_task(vidu_key, prompt, [], ratio="3:4")
             data["assets"]["characters"][name]["status"] = "submitted"
             data["assets"]["characters"][name]["task_id"] = result["task_id"]
+            _clear_fields(data["assets"]["characters"][name], ("error",))
             return True, f"角色「{name}」已提交生成，等待完成"
 
         elif target == "scene":
             prompt = data.get("assets", {}).get("scenes", {}).get(name, {}).get("draft_prompt", "")
-            if not prompt:
+            if not _has_prompt(prompt):
                 return False, f"「{name}」没有提示词，无法提交"
+            if not vidu_key:
+                return False, "提交失败：缺少 Vidu API Key"
             result = vidu.submit_image_task(vidu_key, prompt, [], ratio="16:9")
             data["assets"]["scenes"][name]["status"] = "submitted"
             data["assets"]["scenes"][name]["task_id"] = result["task_id"]
+            _clear_fields(data["assets"]["scenes"][name], ("error",))
             return True, f"场景「{name}」已提交生成，等待完成"
 
         elif target == "prop":
             prompt = data.get("assets", {}).get("props", {}).get(name, {}).get("draft_prompt", "")
-            if not prompt:
+            if not _has_prompt(prompt):
                 return False, f"「{name}」没有提示词，无法提交"
+            if not vidu_key:
+                return False, "提交失败：缺少 Vidu API Key"
             result = vidu.submit_image_task(vidu_key, prompt, [], ratio="1:1")
             data["assets"]["props"][name]["status"] = "submitted"
             data["assets"]["props"][name]["task_id"] = result["task_id"]
+            _clear_fields(data["assets"]["props"][name], ("error",))
             return True, f"道具「{name}」已提交生成，等待完成"
 
         elif target == "storyboard":
-            prompt = data.get("storyboards", {}).get(name, {}).get("draft_prompt", "")
-            if not prompt:
+            board = data.get("storyboards", {}).get(name, {})
+            prompt = board.get("draft_prompt", "")
+            if not _has_prompt(prompt):
                 return False, f"「{name}」没有提示词，无法提交"
-            result = vidu.submit_image_task(vidu_key, prompt, [], ratio="16:9")
+            if not vidu_key:
+                return False, "提交失败：缺少 Vidu API Key"
+            image_paths, issues = _storyboard_reference_paths(project_dir, data, board)
+            if issues:
+                return False, _reference_issue_label(issues)
+            result = vidu.submit_image_task(vidu_key, prompt, image_paths, ratio="16:9")
             data["storyboards"][name]["board_status"] = "submitted"
             data["storyboards"][name]["board_task_id"] = result["task_id"]
+            _clear_fields(data["storyboards"][name], ("board_error",))
             return True, f"故事板「{name}」已提交生成，等待完成"
 
         elif target == "video_part":
             board = data.get("storyboards", {}).get(name, {})
             prompt = ""
             for p in board.get("video_parts", []):
-                if p["part"] == part:
+                if p.get("part") == part:
                     prompt = p.get("draft_prompt", p.get("prompt", ""))
-            if not prompt:
+            if not _has_prompt(prompt):
                 return False, f"「{name}」Part {part} 没有提示词"
-            duration = board.get("video_duration", 10)
-            task_id = wetoken.submit_video_task(wetoken_key, prompt, [], duration=duration, ratio="16:9")
+            if not wetoken_key:
+                return False, "提交失败：缺少 Wetoken API Key"
+            image_paths, issues = _video_reference_paths(project_dir, data, name, board)
+            if issues:
+                return False, _reference_issue_label(issues)
+            try:
+                duration = normalize_video_duration(board.get("video_duration"), default=10)
+                ratio = normalize_video_ratio(board.get("video_ratio"), default="16:9")
+            except VideoParamError as exc:
+                return False, f"提交失败：{exc}"
+            task_id = wetoken.submit_video_task(
+                wetoken_key, prompt, image_paths,
+                duration=duration, ratio=ratio, project_dir=project_dir,
+            )
             for p in board.get("video_parts", []):
-                if p["part"] == part:
+                if p.get("part") == part:
                     p["video_status"] = "submitted"
                     p["video_task_id"] = task_id
+                    _clear_fields(p, ("video_error", "video_download_error", "video_url", "local_path"))
             return True, f"已提交视频「{name}」Part {part}"
 
         return False, f"未知 target: {target}"
@@ -334,7 +470,7 @@ def _do_submit_task(project_name: str, data: dict, target: str, name: str, part)
 # ── 两步循环 ──────────────────────────────────────────────────────────────────
 
 def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
-               project_name: str) -> tuple[str, list[dict], list[dict]]:
+               project_name: str, project_path: str) -> tuple[str, list[dict], list[dict]]:
     """
     两步循环：
     1. 第一次 LLM 调用
@@ -352,7 +488,7 @@ def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
         for a in get_actions:
             target = a.get("target")
             name = a.get("name")
-            full = _get_full_prompt(project_name, target, name)
+            full = _get_full_prompt(project_name, project_path, target, name)
             fetched.append(f"【{target}「{name}」完整提示词】\n{full}")
 
         # 第二次调用：把完整提示词作为 tool 结果注入
@@ -366,7 +502,7 @@ def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
     else:
         reply = result.get("reply", "")
 
-    tool_results = _execute_actions(project_name, actions)
+    tool_results = _execute_actions(project_name, project_path, actions)
     return reply, actions, tool_results
 
 
@@ -375,12 +511,15 @@ def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
 @router.post("/chat")
 async def chat(req: ChatRequest):
     api_key = get_api_key("IDEALAB_API_KEY")
-    system_prompt = _build_system_prompt(req.project_name, req.current_scene_key)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="缺少 ideaLAB API Key，请先在设置中配置")
+    _require_project_dir(req.project_name, req.project_path)
+    system_prompt = _build_system_prompt(req.project_name, req.project_path, req.current_scene_key)
 
     history = req.history[-20:]
     messages = history + [{"role": "user", "content": req.message}]
 
-    reply, actions, tool_results = _run_agent(api_key, messages, system_prompt, req.project_name)
+    reply, actions, tool_results = _run_agent(api_key, messages, system_prompt, req.project_name, req.project_path)
 
     # has_writes: 告诉前端是否需要 refreshStatus
     has_writes = any(r.get("ok") for r in tool_results)

@@ -3,6 +3,8 @@ import time
 import httpx
 from pathlib import Path
 
+from api.errors import describe_exception, describe_remote_error
+
 VIDU_BASE = "https://api.vidu.cn"
 SUBMIT_URL = f"{VIDU_BASE}/ent/v2/reference2image"
 POLL_URL = f"{VIDU_BASE}/ent/v2/tasks/{{task_id}}/creations"
@@ -64,7 +66,10 @@ def submit_image_task(
             for p in image_paths
         ]
 
-    resp = _request("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
+    try:
+        resp = _request("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
+    except Exception as e:
+        raise ViduError(describe_exception("Vidu", e))
     if not resp.is_success:
         try:
             err = resp.json()
@@ -72,7 +77,8 @@ def submit_image_task(
             message = err.get("message", "")
         except Exception:
             reason, message = "", resp.text[:200]
-        raise ViduError(f"{reason}: {message}" if reason else f"HTTP {resp.status_code}: {message}")
+        detail = f"{reason}: {message}" if reason else message
+        raise ViduError(describe_remote_error("Vidu", resp.status_code, detail))
 
     task_id = resp.json().get("task_id")
     if not task_id:

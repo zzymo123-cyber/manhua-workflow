@@ -7,27 +7,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.vidu import submit_image_task, ViduError
 
 
-def _mock_client(json_data):
-    """创建 mock httpx.Client，其 post 返回指定数据"""
+def _mock_response(json_data, is_success=True, text=""):
     mock_resp = MagicMock()
-    mock_resp.status_code = 200
+    mock_resp.is_success = is_success
+    mock_resp.status_code = 200 if is_success else 400
+    mock_resp.text = text
     mock_resp.json.return_value = json_data
-    mock_resp.raise_for_status = MagicMock()
-
-    mock_client = MagicMock()
-    mock_client.post.return_value = mock_resp
-    mock_client.__enter__ = MagicMock(return_value=mock_client)
-    mock_client.__exit__ = MagicMock(return_value=False)
-    return mock_client
+    return mock_resp
 
 
 def test_submit_text_to_image():
-    mock_client = _mock_client({
-        "task_id": "abc123",
-        "data": [{"url": "https://example.com/img.png"}]
-    })
+    mock_resp = _mock_response({"task_id": "abc123"})
 
-    with patch("api.vidu.httpx.Client", return_value=mock_client):
+    with patch("api.vidu._request", return_value=mock_resp) as request:
         result = submit_image_task(
             api_key="test_key",
             prompt="测试提示词",
@@ -35,16 +27,14 @@ def test_submit_text_to_image():
             ratio="3:4",
         )
     assert result["task_id"] == "abc123"
-    assert result["image_url"] == "https://example.com/img.png"
+    assert request.call_args.args[0] == "POST"
+    assert request.call_args.args[1].endswith("/ent/v2/reference2image")
 
 
-def test_submit_image_edit():
-    mock_client = _mock_client({
-        "task_id": "def456",
-        "data": [{"url": "https://example.com/edit.png"}]
-    })
+def test_submit_with_reference_image_uses_same_async_endpoint():
+    mock_resp = _mock_response({"task_id": "def456"})
 
-    with patch("api.vidu.httpx.Client", return_value=mock_client):
+    with patch("api.vidu._request", return_value=mock_resp) as request:
         result = submit_image_task(
             api_key="test_key",
             prompt="编辑提示词",
@@ -52,15 +42,23 @@ def test_submit_image_edit():
             ratio="16:9",
         )
     assert result["task_id"] == "def456"
-    assert result["image_url"] == "https://example.com/edit.png"
-    # 应该调用 /edits 端点
-    call_url = str(mock_client.post.call_args.args[0])
-    assert "/edits" in call_url
+    body = request.call_args.kwargs["json"]
+    assert body["images"] == ["https://example.com/ref.png"]
+    assert request.call_args.args[1].endswith("/ent/v2/reference2image")
 
 
-def test_submit_no_image_url_raises():
-    mock_client = _mock_client({"task_id": "abc", "data": []})
+def test_submit_without_task_id_raises():
+    mock_resp = _mock_response({})
 
-    with patch("api.vidu.httpx.Client", return_value=mock_client):
-        with pytest.raises(ViduError, match="No image URL"):
+    with patch("api.vidu._request", return_value=mock_resp):
+        with pytest.raises(ViduError, match="API 未返回 task_id"):
             submit_image_task(api_key="test_key", prompt="test", image_paths=[])
+
+
+def test_submit_auth_error_is_classified():
+    mock_resp = _mock_response({"message": "invalid api key"}, is_success=False)
+    mock_resp.status_code = 401
+
+    with patch("api.vidu._request", return_value=mock_resp):
+        with pytest.raises(ViduError, match="认证失败"):
+            submit_image_task(api_key="bad_key", prompt="test", image_paths=[])

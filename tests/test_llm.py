@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.llm import generate_prompt, chat_with_agent
+from api.llm import LLMError, chat_with_agent, generate_prompt
 
 
 def _mock_anthropic_resp(text: str):
@@ -27,6 +27,21 @@ def test_generate_prompt_returns_text():
             user_message="生成角色提示词",
         )
     assert result == "生成的提示词内容"
+
+
+def test_generate_prompt_network_error_is_classified():
+    mock_client = MagicMock()
+    import httpx
+    request = httpx.Request("POST", "https://example.com")
+    mock_client.messages.create.side_effect = httpx.ConnectError("boom", request=request)
+
+    with patch("api.llm._get_client", return_value=mock_client):
+        with pytest.raises(LLMError, match="网络请求失败"):
+            generate_prompt(
+                api_key="test",
+                system="你是提示词生成器",
+                user_message="生成角色提示词",
+            )
 
 
 def test_chat_with_agent_returns_reply_and_actions():
