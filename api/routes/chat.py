@@ -6,6 +6,12 @@ from typing import Optional
 
 from api import llm, pipeline as pl
 from api.routes.settings import get_api_key
+from api.storyboard_versions import (
+    get_storyboard_target,
+    set_storyboard_submitted,
+    storyboard_image_path,
+    sync_legacy_v1_from_output,
+)
 from api.video_params import VideoParamError, normalize_video_duration, normalize_video_ratio
 
 router = APIRouter()
@@ -55,12 +61,13 @@ def _build_system_prompt(project_name: str, project_path: str, scene_key: Option
 
     board_summary = []
     for k, b in pipeline_data.get("storyboards", {}).items():
-        draft = b.get("draft_prompt", "")
-        vp = b.get("video_parts", [])
+        target = get_storyboard_target(b, "v1")
+        draft = target.get("draft_prompt", b.get("draft_prompt", ""))
+        vp = target.get("video_parts", b.get("video_parts", []))
         board_summary.append({
             "name": k,
             "title": b.get("script_title", k),
-            "board_status": b.get("board_status", "needed"),
+            "board_status": target.get("board_status", b.get("board_status", "needed")),
             "draft_preview": draft[:100] + ("..." if len(draft) > 100 else ""),
             "video_parts": [{"part": p.get("part"), "status": p.get("video_status", "needed")} for p in vp],
         })
@@ -69,6 +76,7 @@ def _build_system_prompt(project_name: str, project_path: str, scene_key: Option
     scene_context = ""
     if scene_key:
         storyboard = pipeline_data.get("storyboards", {}).get(scene_key, {})
+        target = get_storyboard_target(storyboard, "v1") if storyboard else {}
         meta = pl.get_meta(project_dir, "storyboards", scene_key)
         panels = []
         if meta:
@@ -79,8 +87,8 @@ def _build_system_prompt(project_name: str, project_path: str, scene_key: Option
         scene_context = f"""
 【当前选中场景（完整详情）】
 场景：{scene_key}
-故事板状态：{storyboard.get('board_status', 'unknown')}
-提示词草稿：{storyboard.get('draft_prompt', '')}
+故事板状态：{target.get('board_status', storyboard.get('board_status', 'unknown'))}
+提示词草稿：{target.get('draft_prompt', storyboard.get('draft_prompt', ''))}
 panels：{json.dumps(panels, ensure_ascii=False)}
 """
 
@@ -154,7 +162,8 @@ def _get_full_prompt(project_name: str, project_path: str, target: str, name: st
     elif target == "prop":
         return assets.get("props", {}).get(name, {}).get("draft_prompt", "")
     elif target == "storyboard":
-        return data.get("storyboards", {}).get(name, {}).get("draft_prompt", "")
+        board = data.get("storyboards", {}).get(name, {})
+        return get_storyboard_target(board, "v1").get("draft_prompt", "") if board else ""
     return ""
 
 
@@ -199,13 +208,18 @@ def _execute_actions(project_name: str, project_path: str, actions: list[dict]) 
                 data["assets"]["props"][name]["draft_prompt"] = value
                 ok = True
             elif target == "storyboard" and name and name in data.get("storyboards", {}):
-                data["storyboards"][name]["draft_prompt"] = value
+                board = data["storyboards"][name]
+                get_storyboard_target(board, "v1")["draft_prompt"] = value
+                sync_legacy_v1_from_output(board)
                 ok = True
             elif target == "video_part" and name:
                 part_num = action.get("part")
-                for p in data.get("storyboards", {}).get(name, {}).get("video_parts", []):
+                board = data.get("storyboards", {}).get(name, {})
+                board_target = get_storyboard_target(board, "v1") if board else {}
+                for p in board_target.get("video_parts", []):
                     if p.get("part") == part_num:
                         p["draft_prompt"] = value
+                        sync_legacy_v1_from_output(board)
                         ok = True
             if ok:
                 changed = True
@@ -227,7 +241,9 @@ def _execute_actions(project_name: str, project_path: str, actions: list[dict]) 
                     results.append({"action": act, "name": name, "ok": False,
                                      "label": f"参数更新失败：{exc}"})
                     continue
-                data["storyboards"][name][f"video_{field}"] = value
+                board = data["storyboards"][name]
+                get_storyboard_target(board, "v1")[f"video_{field}"] = value
+                sync_legacy_v1_from_output(board)
                 changed = True
                 results.append({"action": act, "name": name, "ok": True,
                                  "label": f"已更新「{name}」{field}={value}"})
@@ -356,10 +372,11 @@ def _storyboard_reference_paths(project_dir, data: dict, board: dict) -> tuple[l
 
 def _video_reference_paths(project_dir, data: dict, scene_key: str, board: dict) -> tuple[list[str], list[str]]:
     paths, issues = _storyboard_reference_paths(project_dir, data, board)
-    if board.get("board_status") != "completed":
+    target = get_storyboard_target(board, "v1")
+    if target.get("board_status") != "completed":
         issues.append("故事板尚未完成")
     else:
-        board_path = pl.get_primary_image_path(project_dir, "storyboards", scene_key) or _default_reference_path(project_dir, "storyboards", scene_key)
+        board_path = storyboard_image_path(project_dir, scene_key, "v1")
         if not board_path.exists():
             issues.append(f"缺少参考图：{_relative_path(project_dir, board_path)}")
         else:
@@ -419,7 +436,8 @@ def _do_submit_task(project_name: str, project_path: str, data: dict, target: st
 
         elif target == "storyboard":
             board = data.get("storyboards", {}).get(name, {})
-            prompt = board.get("draft_prompt", "")
+            board_target = get_storyboard_target(board, "v1") if board else {}
+            prompt = board_target.get("draft_prompt", "")
             if not _has_prompt(prompt):
                 return False, f"「{name}」没有提示词，无法提交"
             if not vidu_key:
@@ -428,15 +446,14 @@ def _do_submit_task(project_name: str, project_path: str, data: dict, target: st
             if issues:
                 return False, _reference_issue_label(issues)
             result = vidu.submit_image_task(vidu_key, prompt, image_paths, ratio="16:9")
-            data["storyboards"][name]["board_status"] = "submitted"
-            data["storyboards"][name]["board_task_id"] = result["task_id"]
-            _clear_fields(data["storyboards"][name], ("board_error",))
+            set_storyboard_submitted(data["storyboards"][name], result["task_id"], "v1")
             return True, f"故事板「{name}」已提交生成，等待完成"
 
         elif target == "video_part":
             board = data.get("storyboards", {}).get(name, {})
+            board_target = get_storyboard_target(board, "v1") if board else {}
             prompt = ""
-            for p in board.get("video_parts", []):
+            for p in board_target.get("video_parts", []):
                 if p.get("part") == part:
                     prompt = p.get("draft_prompt", p.get("prompt", ""))
             if not _has_prompt(prompt):
@@ -447,19 +464,20 @@ def _do_submit_task(project_name: str, project_path: str, data: dict, target: st
             if issues:
                 return False, _reference_issue_label(issues)
             try:
-                duration = normalize_video_duration(board.get("video_duration"), default=10)
-                ratio = normalize_video_ratio(board.get("video_ratio"), default="16:9")
+                duration = normalize_video_duration(board_target.get("video_duration"), default=10)
+                ratio = normalize_video_ratio(board_target.get("video_ratio"), default="16:9")
             except VideoParamError as exc:
                 return False, f"提交失败：{exc}"
             task_id = wetoken.submit_video_task(
                 wetoken_key, prompt, image_paths,
                 duration=duration, ratio=ratio, project_dir=project_dir,
             )
-            for p in board.get("video_parts", []):
+            for p in board_target.get("video_parts", []):
                 if p.get("part") == part:
                     p["video_status"] = "submitted"
                     p["video_task_id"] = task_id
                     _clear_fields(p, ("video_error", "video_download_error", "video_url", "local_path"))
+            sync_legacy_v1_from_output(board)
             return True, f"已提交视频「{name}」Part {part}"
 
         return False, f"未知 target: {target}"

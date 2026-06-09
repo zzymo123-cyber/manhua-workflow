@@ -6,6 +6,16 @@ from pathlib import Path, PureWindowsPath
 
 from api import pipeline as pl, vidu, wetoken
 from api.routes.settings import get_api_key
+from api.storyboard_versions import (
+    StoryboardVersionError,
+    get_storyboard_status,
+    get_storyboard_target,
+    set_storyboard_submitted,
+    storyboard_image_path,
+    storyboard_image_relative_path,
+    storyboard_output_id,
+    sync_legacy_v1_from_output,
+)
 from api.video_params import VideoParamError, normalize_video_duration, normalize_video_ratio
 
 router = APIRouter()
@@ -13,8 +23,11 @@ router = APIRouter()
 
 class BatchSubmitItem(BaseModel):
     type: str
+    mode: str = "v1"
     name: Optional[str] = None
     scene_key: Optional[str] = None
+    page: Optional[int] = None
+    output_id: Optional[str] = None
     part: Optional[int] = None
     prompt: str
     image_paths: list[str] = []
@@ -30,10 +43,13 @@ class BatchSubmitRequest(BaseModel):
 
 class SubmitRequest(BaseModel):
     type: str  # character | scene | prop | storyboard | video
+    mode: str = "v1"
     project_name: str = ""
     project_path: str = ""
     name: Optional[str] = None
     scene_key: Optional[str] = None
+    page: Optional[int] = None
+    output_id: Optional[str] = None
     part: Optional[int] = None
     prompt: str
     image_paths: list[str] = []
@@ -119,6 +135,32 @@ def _require_completed_storyboard(board: dict):
         raise HTTPException(status_code=400, detail="故事板尚未完成，无法提交视频")
 
 
+def _require_completed_storyboard_target(
+    board: dict,
+    mode: str = "v1",
+    page: int | None = None,
+    output_id: str | None = None,
+):
+    try:
+        status = get_storyboard_status(board, mode, page, output_id)
+    except StoryboardVersionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if status != "completed":
+        raise HTTPException(status_code=400, detail="故事板尚未完成，无法提交视频")
+
+
+def _storyboard_target_or_400(
+    board: dict,
+    mode: str = "v1",
+    page: int | None = None,
+    output_id: str | None = None,
+) -> dict:
+    try:
+        return get_storyboard_target(board, mode, page, output_id)
+    except StoryboardVersionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def _clear_fields(item: dict, fields: tuple[str, ...]):
     for field in fields:
         item.pop(field, None)
@@ -166,9 +208,10 @@ def _storyboard_reference_paths(project_dir: Path, data: dict, board: dict) -> t
     return paths, issues
 
 
-def _video_reference_paths(project_dir: Path, data: dict, scene_key: str, board: dict) -> tuple[list[str], list[str]]:
+def _video_reference_paths(project_dir: Path, data: dict, scene_key: str, board: dict,
+                           mode: str = "v1", page: int | None = None) -> tuple[list[str], list[str]]:
     paths, issues = _storyboard_reference_paths(project_dir, data, board)
-    board_path = pl.get_primary_image_path(project_dir, "storyboards", scene_key) or _default_reference_path(project_dir, "storyboards", scene_key)
+    board_path = storyboard_image_path(project_dir, scene_key, mode, page)
     if not board_path.exists():
         issues.append(f"缺少参考图：{_relative_path(project_dir, board_path)}")
     else:
@@ -251,6 +294,7 @@ async def submit_task(req: SubmitRequest):
 
     elif req.type == "storyboard":
         board = _require_storyboard(data, req.scene_key)
+        _storyboard_target_or_400(board, req.mode, req.page, req.output_id)
         prompt = _require_prompt(req.prompt)
         vidu_key = _require_api_key(vidu_key, "Vidu")
         reference_paths, reference_issues = _storyboard_reference_paths(project_dir, data, board)
@@ -261,26 +305,26 @@ async def submit_task(req: SubmitRequest):
             result = vidu.submit_image_task(vidu_key, prompt, image_paths, ratio="16:9")
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Vidu API 错误: {e}")
-        board["board_status"] = "submitted"
-        board["board_task_id"] = result["task_id"]
-        _clear_fields(board, ("board_error",))
+        set_storyboard_submitted(board, result["task_id"], req.mode, req.page, req.output_id)
         resp_task_id, resp_status = result["task_id"], "submitted"
 
     elif req.type == "video":
         board = _require_storyboard(data, req.scene_key)
         part = _require_video_part(req.part)
-        _require_completed_storyboard(board)
-        part_info = _require_existing_video_part(board, part)
+        _require_completed_storyboard_target(board, req.mode, req.page, req.output_id)
+        board_target = _storyboard_target_or_400(board, req.mode, req.page, req.output_id)
+        part_info = _require_existing_video_part(board_target, part)
         prompt = _require_prompt(req.prompt)
         wetoken_key = _require_api_key(wetoken_key, "Wetoken")
-        duration_value = req.duration if req.duration is not None else board.get("video_duration")
-        ratio_value = req.ratio if req.ratio is not None else board.get("video_ratio")
+        duration_value = req.duration if req.duration is not None else board_target.get("video_duration", board.get("video_duration"))
+        ratio_value = req.ratio if req.ratio is not None else board_target.get("video_ratio", board.get("video_ratio"))
         try:
             duration = normalize_video_duration(duration_value, default=10)
             ratio = normalize_video_ratio(ratio_value, default="16:9")
         except VideoParamError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        reference_paths, reference_issues = _video_reference_paths(project_dir, data, req.scene_key, board)
+        source_page = req.page or board_target.get("page", 1)
+        reference_paths, reference_issues = _video_reference_paths(project_dir, data, req.scene_key, board, req.mode, source_page)
         if reference_issues:
             raise HTTPException(status_code=400, detail=_reference_issue_detail(reference_issues))
         image_paths = _merge_image_paths(abs_image_paths, reference_paths)
@@ -293,7 +337,13 @@ async def submit_task(req: SubmitRequest):
             raise HTTPException(status_code=502, detail=f"Wetoken API 错误: {e}")
         part_info["video_status"] = "submitted"
         part_info["video_task_id"] = task_id
+        part_info["storyboard_mode"] = req.mode
+        part_info["storyboard_output_id"] = storyboard_output_id(req.mode, req.page, req.output_id)
+        part_info["storyboard_page"] = source_page
+        part_info["source_image"] = storyboard_image_relative_path(req.scene_key or "", req.mode, source_page)
         _clear_fields(part_info, ("video_error", "video_download_error", "video_url", "local_path"))
+        if req.mode == "v1":
+            sync_legacy_v1_from_output(board)
         resp_task_id = task_id
 
     else:
@@ -313,8 +363,8 @@ async def batch_submit_tasks(req: BatchSubmitRequest):
     for item in req.items:
         try:
             single_req = SubmitRequest(
-                type=item.type, project_name=req.project_name, project_path=req.project_path,
-                name=item.name, scene_key=item.scene_key, part=item.part,
+                type=item.type, mode=item.mode, project_name=req.project_name, project_path=req.project_path,
+                name=item.name, scene_key=item.scene_key, page=item.page, output_id=item.output_id, part=item.part,
                 prompt=item.prompt, image_paths=item.image_paths,
                 duration=item.duration, ratio=item.ratio,
             )

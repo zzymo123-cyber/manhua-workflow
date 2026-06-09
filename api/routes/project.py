@@ -7,6 +7,12 @@ from pathlib import Path
 from api import pipeline as pl
 from api import parser
 from api.routes.settings import get_api_key
+from api.storyboard_versions import (
+    StoryboardVersionError,
+    get_storyboard_target,
+    normalize_storyboard_mode,
+    sync_legacy_v1_from_output,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -79,11 +85,8 @@ async def parse_project(req: ParseRequest):
     if not input_dir.exists() or not input_dir.is_dir():
         raise HTTPException(status_code=400, detail=f"目录不存在：{req.input_dir}")
 
-    # 校验最小文件集
+    # 最小输入只要求 script/；角色、场景、道具可从剧本中推断。
     missing_files = []
-    for f in ["character_visuals.md", "scene_props_visuals.md"]:
-        if not (input_dir / f).exists():
-            missing_files.append(f)
     if not (input_dir / "script").is_dir():
         missing_files.append("script/")
     if missing_files:
@@ -160,7 +163,22 @@ class UpdateTemplatesRequest(BaseModel):
     scene: str | None = None
     prop: str | None = None
     storyboard: str | None = None
+    storyboard_v2: str | None = None
     video: str | None = None
+    video_v2: str | None = None
+
+
+class UpdateStoryboardInputRequest(BaseModel):
+    project_name: str = ""
+    project_path: str = ""
+    scene_key: str
+    mode: str = "v1"
+    page: int | None = None
+    output_id: str | None = None
+    story_summary: str | None = None
+    conflict_summary: str | None = None
+    shot_plan: dict | None = None
+    draft_prompt: str | None = None
 
 
 @router.put("/prompt-templates")
@@ -172,4 +190,50 @@ async def update_prompt_templates(req: UpdateTemplatesRequest, project_name: str
         if value is not None:
             current[key] = value
     pl.write_prompt_templates(project_dir, current)
+    return {"ok": True}
+
+
+@router.put("/storyboard-input")
+async def update_storyboard_input(req: UpdateStoryboardInputRequest):
+    project_dir = _require_project_dir(req.project_name, req.project_path)
+    data = pl.read_pipeline(project_dir)
+    board = data.get("storyboards", {}).get(req.scene_key)
+    if board is None:
+        raise HTTPException(status_code=404, detail=f"未找到故事板: {req.scene_key}")
+
+    if req.story_summary is not None:
+        board["story_summary"] = req.story_summary
+    if req.conflict_summary is not None:
+        board["conflict_summary"] = req.conflict_summary
+
+    try:
+        mode = normalize_storyboard_mode(req.mode)
+    except StoryboardVersionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if mode == "v2":
+        page_num = req.page or 1
+        try:
+            target = get_storyboard_target(board, mode, page_num, req.output_id)
+        except StoryboardVersionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if req.shot_plan is not None:
+            target["shot_plan"] = req.shot_plan
+            if page_num == 1:
+                board["shot_plan"] = req.shot_plan
+        if req.draft_prompt is not None:
+            target["draft_prompt"] = req.draft_prompt
+    else:
+        try:
+            target = get_storyboard_target(board, mode, req.page, req.output_id)
+        except StoryboardVersionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if req.shot_plan is not None:
+            target["shot_plan"] = req.shot_plan
+        if req.draft_prompt is not None:
+            target["draft_prompt"] = req.draft_prompt
+        if mode == "v1":
+            sync_legacy_v1_from_output(board)
+
+    pl.write_pipeline(project_dir, data)
     return {"ok": True}

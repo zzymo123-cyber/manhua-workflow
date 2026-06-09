@@ -2,7 +2,7 @@
   "vidu_api_key": "",
   "wetoken_api_key": "",
   "idealab_api_key": "",
-  "idealab_base_url": "https://api.idealab.com/v1",
+  "idealab_base_url": "https://idealab.alibaba-inc.com/api/anthropic",
   "gh_token": "",
   "gh_owner": "",
   "gh_repo": "",

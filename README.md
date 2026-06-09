@@ -4,6 +4,10 @@ Manhua Workflow is a local production tool for turning a structured manhua or sh
 
 It is designed for the project owner and collaborators who need a quiet, professional workflow surface: import a project, check readiness, generate prompts, submit image and video tasks, recover from failures, and download outputs.
 
+## Current Release
+
+v3 separates storyboard versions into independent production lanes. v1, v2, and future v3/v4 storyboard outputs each keep their own prompt draft, generation status, task ID, image path, video prompt parts, and video task state. Video generation now binds to a concrete storyboard output such as `v1_main`, `v2_p1`, or `v2_p2` instead of relying on a scene-level storyboard state.
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -70,8 +74,8 @@ Import a project folder that contains:
 
 ```text
 your-project/
-  character_visuals.md
-  scene_props_visuals.md
+  character_visuals.md        optional
+  scene_props_visuals.md      optional
   script/
     ep01.md
     ep02.md
@@ -79,9 +83,14 @@ your-project/
 
 Required files:
 
+- `script/ep*.md`: episode scripts with scene headings
+
+Optional files:
+
 - `character_visuals.md`: role sections using `## 角色名`
 - `scene_props_visuals.md`: scene and prop sections
-- `script/ep*.md`: episode scripts with scene headings
+
+If visual documents are missing, the app infers initial character, scene, and prop seeds from the scripts so the project can still be imported and then refined in the UI.
 
 The app parses this folder and writes `pipeline.json` into the same folder.
 
@@ -92,8 +101,8 @@ The app parses this folder and writes `pipeline.json` into the same folder.
 3. Generate character, scene, and prop prompts.
 4. Submit image tasks and wait for completion.
 5. Generate storyboard prompts after required references are ready.
-6. Submit storyboard images.
-7. Generate video prompts for completed storyboards.
+6. Submit storyboard images for the selected storyboard version and page.
+7. Generate video prompts from a completed storyboard output.
 8. Submit video parts and download completed videos.
 
 ## Development
@@ -114,7 +123,7 @@ Run tests:
 Current expected result:
 
 ```text
-140 passed
+166 passed
 ```
 
 ## Local Files

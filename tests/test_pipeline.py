@@ -134,5 +134,23 @@ def test_read_prompt_templates_invalid_json_raises_clear_error(tmp_project):
 
 def test_get_prompt_template_defaults_returns_all_keys():
     defaults = get_prompt_template_defaults()
-    assert set(defaults.keys()) == {"character", "scene", "prop", "storyboard", "video"}
+    assert set(defaults.keys()) == {
+        "character",
+        "scene",
+        "prop",
+        "storyboard",
+        "storyboard_v2",
+        "video",
+        "video_v2",
+    }
     assert all(defaults.values())  # all non-empty
+
+
+def test_read_prompt_templates_merges_new_defaults_for_existing_template_file(tmp_project):
+    write_prompt_templates(tmp_project, {"storyboard": "custom storyboard prompt"})
+
+    templates = read_prompt_templates(tmp_project)
+
+    assert templates["storyboard"] == "custom storyboard prompt"
+    assert "storyboard_v2" in templates
+    assert "video_v2" in templates

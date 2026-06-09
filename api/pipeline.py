@@ -142,13 +142,23 @@ def _get_prompt_template_defaults() -> dict:
     """延迟加载默认值（避免循环 import）"""
     global _PROMPT_TEMPLATE_DEFAULTS
     if _PROMPT_TEMPLATE_DEFAULTS is None:
-        from api.routes.prompts import CHARACTER_SYSTEM, SCENE_SYSTEM, PROP_SYSTEM, STORYBOARD_SYSTEM, VIDEO_SYSTEM
+        from api.routes.prompts import (
+            CHARACTER_SYSTEM,
+            SCENE_SYSTEM,
+            PROP_SYSTEM,
+            STORYBOARD_SYSTEM,
+            STORYBOARD_V2_SYSTEM,
+            VIDEO_SYSTEM,
+            VIDEO_V2_SYSTEM,
+        )
         _PROMPT_TEMPLATE_DEFAULTS = {
             "character": CHARACTER_SYSTEM,
             "scene": SCENE_SYSTEM,
             "prop": PROP_SYSTEM,
             "storyboard": STORYBOARD_SYSTEM,
+            "storyboard_v2": STORYBOARD_V2_SYSTEM,
             "video": VIDEO_SYSTEM,
+            "video_v2": VIDEO_V2_SYSTEM,
         }
     return _PROMPT_TEMPLATE_DEFAULTS
 
@@ -157,7 +167,7 @@ def read_prompt_templates(project_dir: Path) -> dict:
     """读取 prompt_templates.json，不存在则返回默认值"""
     path = project_dir / "prompt_templates.json"
     if path.exists():
-        return _read_json_file(path, "prompt_templates.json")
+        return {**_get_prompt_template_defaults(), **_read_json_file(path, "prompt_templates.json")}
     return _get_prompt_template_defaults()
 
 

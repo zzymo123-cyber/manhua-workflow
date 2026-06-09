@@ -319,6 +319,103 @@ def test_parse_project_requires_script_directory(tmp_path):
     assert not (input_dir / "pipeline.json").exists()
 
 
+def test_parse_project_infers_assets_from_script_when_visual_docs_missing(tmp_path):
+    input_dir = tmp_path / "输入目录"
+    input_dir.mkdir()
+    (input_dir / "script").mkdir()
+    (input_dir / "script" / "ep01.md").write_text(
+        "## 场景1：内 · 办公室 · 夜\n"
+        "**小林**：先检查蓝色笔记本。\n"
+        "**阿岚**：道具：蓝色笔记本、旧手机。\n",
+        encoding="utf-8",
+    )
+
+    resp = client.post("/api/project/parse", json={
+        "input_dir": str(input_dir),
+        "project_name": "自动推断项目",
+    })
+
+    assert resp.status_code == 200
+    pipeline = resp.json()["pipeline"]
+    assert set(pipeline["assets"]["characters"]) == {"小林", "阿岚"}
+    assert set(pipeline["assets"]["scenes"]) == {"办公室"}
+    assert set(pipeline["assets"]["props"]) == {"蓝色笔记本", "旧手机"}
+    assert pipeline["storyboards"]["s01_01"]["characters_in_scene"] == ["小林", "阿岚"]
+    assert pipeline["storyboards"]["s01_01"]["scene_location"] == "办公室"
+    assert pipeline["storyboards"]["s01_01"]["scene_time"] == "夜"
+    assert pipeline["storyboards"]["s01_01"]["props_in_scene"] == ["蓝色笔记本", "旧手机"]
+    assert "蓝色笔记本" in pipeline["storyboards"]["s01_01"]["story_summary"]
+    assert pipeline["storyboards"]["s01_01"]["conflict_summary"]
+    shot_plan = pipeline["storyboards"]["s01_01"]["shot_plan"]
+    assert shot_plan["mode"] == "v2"
+    assert 1 <= len(shot_plan["shots"]) <= 6
+    assert shot_plan["total_duration"] <= 15
+    assert all("duration" in shot and "action" in shot for shot in shot_plan["shots"])
+    versions = pipeline["storyboards"]["s01_01"]["board_versions"]
+    assert versions["v1"]["board_status"] == "needed"
+    assert versions["v1"]["outputs"][0]["id"] == "v1_main"
+    assert versions["v1"]["outputs"][0]["board_status"] == "needed"
+    assert len(versions["v2"]["pages"]) == 1
+    assert versions["v2"]["outputs"][0]["id"] == "v2_p1"
+    assert versions["v2"]["pages"][0]["shot_plan"] == shot_plan
+    assert versions["v3"]["outputs"] == []
+    assert versions["v4"]["outputs"] == []
+
+
+def test_parse_project_splits_v2_storyboard_pages_by_fifteen_seconds(tmp_path):
+    input_dir = tmp_path / "输入目录"
+    input_dir.mkdir()
+    (input_dir / "script").mkdir()
+    long_lines = "\n".join(
+        f"**小林**：第{i}句台词推动冲突升级。"
+        for i in range(1, 9)
+    )
+    (input_dir / "script" / "ep01.md").write_text(
+        f"## 场景1：内 · 办公室 · 夜\n{long_lines}",
+        encoding="utf-8",
+    )
+
+    resp = client.post("/api/project/parse", json={
+        "input_dir": str(input_dir),
+        "project_name": "长场景项目",
+    })
+
+    assert resp.status_code == 200
+    board = resp.json()["pipeline"]["storyboards"]["s01_01"]
+    pages = board["board_versions"]["v2"]["pages"]
+    assert len(pages) == 2
+    assert [page["page"] for page in pages] == [1, 2]
+    assert all(page["shot_plan"]["total_duration"] <= 15 for page in pages)
+    assert pages[0]["board_status"] == "needed"
+    assert pages[1]["board_status"] == "needed"
+
+
+def test_parse_project_merges_script_inferred_assets_with_visual_docs(tmp_path):
+    input_dir = tmp_path / "输入目录"
+    input_dir.mkdir()
+    (input_dir / "character_visuals.md").write_text("## 小林\n短黑发，白衬衫", encoding="utf-8")
+    (input_dir / "scene_props_visuals.md").write_text("### 办公室\n现代办公室", encoding="utf-8")
+    (input_dir / "script").mkdir()
+    (input_dir / "script" / "ep01.md").write_text(
+        "## 场景1：内 · 办公室 · 夜\n"
+        "**小林**：继续。\n"
+        "**阿岚**：我带了道具：旧手机。\n",
+        encoding="utf-8",
+    )
+
+    resp = client.post("/api/project/parse", json={
+        "input_dir": str(input_dir),
+        "project_name": "合并推断项目",
+    })
+
+    assert resp.status_code == 200
+    assets = resp.json()["pipeline"]["assets"]
+    assert assets["characters"]["小林"]["seed"] == "短黑发，白衬衫"
+    assert "阿岚" in assets["characters"]
+    assert assets["scenes"]["办公室"]["seed"] == "现代办公室"
+    assert "旧手机" in assets["props"]
+
+
 def test_get_project_status(tmp_path):
     """GET /api/project/status 返回 pipeline.json 内容"""
     project_dir = tmp_path / "测试项目"
@@ -343,6 +440,158 @@ def test_get_project_status_accepts_project_path(tmp_path):
 
     assert resp.status_code == 200
     assert resp.json()["project"] == "测试项目"
+
+
+def test_update_storyboard_input_saves_editable_fields(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "story_summary": "旧摘要",
+                "conflict_summary": "旧冲突",
+                "shot_plan": {"shots": []},
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    new_plan = {
+        "mode": "v2",
+        "total_duration": 6,
+        "shots": [{"index": 1, "duration": 6, "action": "小林走向桌前"}],
+    }
+    resp = client.put("/api/project/storyboard-input", json={
+        "project_path": str(project_dir),
+        "scene_key": "s01_01",
+        "story_summary": "新摘要",
+        "conflict_summary": "新冲突",
+        "shot_plan": new_plan,
+    })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["s01_01"]
+    assert board["story_summary"] == "新摘要"
+    assert board["conflict_summary"] == "新冲突"
+    assert board["shot_plan"] == new_plan
+
+
+def test_update_storyboard_input_saves_v2_page_without_overwriting_v1(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "draft_prompt": "v1草稿",
+                "shot_plan": {"page": 1},
+                "board_versions": {
+                    "v1": {"draft_prompt": "v1草稿", "board_status": "needed"},
+                    "v2": {"pages": [
+                        {"page": 1, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 1}},
+                        {"page": 2, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 2}},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    resp = client.put("/api/project/storyboard-input", json={
+        "project_path": str(project_dir),
+        "scene_key": "s01_01",
+        "mode": "v2",
+        "page": 2,
+        "shot_plan": {"page": 2, "shots": [{"index": 1}]},
+        "draft_prompt": "v2第2页草稿",
+    })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["s01_01"]
+    assert board["board_versions"]["v1"]["draft_prompt"] == "v1草稿"
+    assert board["board_versions"]["v2"]["pages"][1]["draft_prompt"] == "v2第2页草稿"
+    assert board["board_versions"]["v2"]["pages"][1]["shot_plan"]["shots"] == [{"index": 1}]
+
+
+def test_update_storyboard_input_saves_v1_output_without_overwriting_v2(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "draft_prompt": "旧v1",
+                "shot_plan": {"page": 1},
+                "board_versions": {
+                    "v1": {"outputs": [
+                        {"id": "v1_main", "draft_prompt": "旧v1", "board_status": "needed", "shot_plan": {"page": 1}}
+                    ]},
+                    "v2": {"pages": [
+                        {"id": "v2_p1", "page": 1, "draft_prompt": "v2不变", "board_status": "needed", "shot_plan": {"page": 1}},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    resp = client.put("/api/project/storyboard-input", json={
+        "project_path": str(project_dir),
+        "scene_key": "s01_01",
+        "mode": "v1",
+        "output_id": "v1_main",
+        "shot_plan": {"page": 1, "shots": [{"index": 1, "action": "v1动作"}]},
+        "draft_prompt": "新v1草稿",
+    })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["s01_01"]
+    assert board["draft_prompt"] == "新v1草稿"
+    assert board["board_versions"]["v1"]["outputs"][0]["draft_prompt"] == "新v1草稿"
+    assert board["board_versions"]["v2"]["pages"][0]["draft_prompt"] == "v2不变"
+
+
+def test_update_storyboard_input_rejects_missing_v2_page_without_creating_it(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "shot_plan": {"page": 1},
+                "board_versions": {
+                    "v2": {"pages": [
+                        {"page": 1, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 1}},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    resp = client.put("/api/project/storyboard-input", json={
+        "project_path": str(project_dir),
+        "scene_key": "s01_01",
+        "mode": "v2",
+        "page": 99,
+        "draft_prompt": "不应该保存",
+    })
+
+    assert resp.status_code == 400
+    assert "未找到故事板 v2 第 99 页" in resp.json()["detail"]
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    assert [page["page"] for page in updated["storyboards"]["s01_01"]["board_versions"]["v2"]["pages"]] == [1]
 
 
 def test_generate_character_prompt(tmp_path):
@@ -406,6 +655,205 @@ def test_generate_storyboard_prompt(tmp_path):
         })
     assert resp.status_code == 200
     assert resp.json()["prompt"] == "生成的故事板提示词"
+
+
+def test_prompt_template_defaults_include_v2_modes():
+    resp = client.get("/api/project/prompt-templates", params={"defaults": "true"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "storyboard_v2" in data
+    assert "video_v2" in data
+    assert "黑白铅笔线稿" in data["storyboard_v2"]
+
+
+def test_generate_storyboard_prompt_v2_uses_v2_template(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {
+            "characters": {"小林": {"status": "completed"}},
+            "scenes": {"办公室": {"status": "completed"}},
+            "props": {},
+        },
+        "storyboards": {"s01_01": {"board_status": "needed"}},
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.prompts.llm.generate_prompt", return_value="v2故事板提示词") as generate_prompt, \
+         patch("api.routes.prompts.get_api_key", return_value="test_key"):
+        resp = client.post("/api/prompts/generate", json={
+            "type": "storyboard",
+            "mode": "v2",
+            "project_path": str(project_dir),
+            "scene_key": "s01_01",
+            "characters": ["小林"],
+            "scene_location": "办公室",
+            "script_segment": "小林检查办公室。",
+        })
+
+    assert resp.status_code == 200
+    assert resp.json()["prompt"] == "v2故事板提示词"
+    assert "黑白铅笔线稿" in generate_prompt.call_args.args[1]
+
+
+def test_generate_storyboard_prompt_v2_page_saves_page_draft_without_overwriting_v1(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "draft_prompt": "v1草稿",
+                "script_segment": "小林检查办公室。",
+                "board_versions": {
+                    "v1": {"draft_prompt": "v1草稿", "board_status": "needed"},
+                    "v2": {"pages": [
+                        {"page": 1, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 1}},
+                        {"page": 2, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 2}},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.prompts.llm.generate_prompt", return_value="v2第2页提示词"), \
+         patch("api.routes.prompts.get_api_key", return_value="test_key"):
+        resp = client.post("/api/prompts/generate", json={
+            "type": "storyboard",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "s01_01",
+        })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["s01_01"]
+    assert board["draft_prompt"] == "v1草稿"
+    assert board["board_versions"]["v1"]["draft_prompt"] == "v1草稿"
+    assert board["board_versions"]["v2"]["pages"][1]["draft_prompt"] == "v2第2页提示词"
+
+
+def test_generate_storyboard_prompt_rejects_missing_v2_page_without_llm_call(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "script_segment": "小林检查办公室。",
+                "board_versions": {
+                    "v2": {"pages": [
+                        {"page": 1, "draft_prompt": "", "board_status": "needed", "shot_plan": {"page": 1}},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.prompts.llm.generate_prompt") as generate_prompt, \
+         patch("api.routes.prompts.get_api_key", return_value="test_key"):
+        resp = client.post("/api/prompts/generate", json={
+            "type": "storyboard",
+            "mode": "v2",
+            "page": 3,
+            "project_path": str(project_dir),
+            "scene_key": "s01_01",
+        })
+
+    assert resp.status_code == 400
+    assert "未找到故事板 v2 第 3 页" in resp.json()["detail"]
+    generate_prompt.assert_not_called()
+
+
+def test_generate_video_prompt_v2_does_not_require_panels(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "completed",
+                "script_segment": "小林检查办公室。",
+                "shot_plan": {
+                    "total_duration": 5,
+                    "shots": [{"index": 1, "duration": 5, "action": "小林走向桌前"}],
+                },
+                "video_parts": [],
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.prompts.llm.generate_prompt", return_value="---PART1---\nc1,5s,小林走向桌前") as generate_prompt, \
+         patch("api.routes.prompts.get_api_key", return_value="test_key"):
+        resp = client.post("/api/prompts/generate", json={
+            "type": "video",
+            "mode": "v2",
+            "project_path": str(project_dir),
+            "scene_key": "s01_01",
+            "script_segment": "小林检查办公室。",
+        })
+
+    assert resp.status_code == 200
+    assert "专业影视分镜板" in generate_prompt.call_args.args[1]
+    assert "小林走向桌前" in generate_prompt.call_args.args[2]
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    assert updated["storyboards"]["s01_01"]["video_parts"][0]["duration"] == 5
+
+
+def test_generate_video_prompt_v2_page_saves_video_parts_on_page(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "s01_01": {
+                "board_status": "needed",
+                "script_segment": "小林检查办公室。",
+                "board_versions": {
+                    "v1": {"board_status": "needed", "video_parts": []},
+                    "v2": {"pages": [
+                        {"page": 1, "board_status": "needed", "shot_plan": {"page": 1}, "video_parts": []},
+                        {"page": 2, "board_status": "completed", "shot_plan": {"shots": [{"action": "第2页动作"}]}, "video_parts": []},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.prompts.llm.generate_prompt", return_value="---PART1---\nc1,4s,第2页视频"), \
+         patch("api.routes.prompts.get_api_key", return_value="test_key"):
+        resp = client.post("/api/prompts/generate", json={
+            "type": "video",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "s01_01",
+        })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["s01_01"]
+    assert board.get("video_parts") in (None, [])
+    page = board["board_versions"]["v2"]["pages"][1]
+    assert page["video_parts"][0]["duration"] == 4
+    assert "第2页视频" in page["video_parts"][0]["draft_prompt"]
+    assert page["video_parts"][0]["storyboard_mode"] == "v2"
+    assert page["video_parts"][0]["storyboard_output_id"] == "v2_p2"
+    assert page["video_parts"][0]["storyboard_page"] == 2
+    assert page["video_parts"][0]["source_image"] == "storyboards/s01_01/v2_p2.png"
 
 
 def test_generate_character_prompt_accepts_project_path(tmp_path):
@@ -741,6 +1189,131 @@ def test_submit_storyboard_clears_previous_board_error(tmp_path):
     assert "board_error" not in board
 
 
+def test_submit_storyboard_v2_page_updates_only_that_page(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v1": {"board_status": "needed", "draft_prompt": "v1草稿"},
+                    "v2": {"pages": [
+                        {"page": 1, "board_status": "needed", "draft_prompt": "p1"},
+                        {"page": 2, "board_status": "needed", "draft_prompt": "p2"},
+                    ]},
+                },
+            },
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.vidu.submit_image_task", return_value={"task_id": "v2_page2"}), \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "storyboard",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "prompt": "v2第2页故事板提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["E01-S1"]
+    assert board["board_status"] == "needed"
+    assert board["board_versions"]["v1"]["board_status"] == "needed"
+    assert board["board_versions"]["v2"]["pages"][0]["board_status"] == "needed"
+    assert board["board_versions"]["v2"]["pages"][1]["board_status"] == "submitted"
+    assert board["board_versions"]["v2"]["pages"][1]["board_task_id"] == "v2_page2"
+
+
+def test_submit_storyboard_rejects_missing_v2_page_without_remote_call(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v2": {"pages": [
+                        {"page": 1, "board_status": "needed", "draft_prompt": "p1"},
+                    ]},
+                },
+            },
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.vidu.submit_image_task") as submit_image, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "storyboard",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "prompt": "v2不存在页提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 400
+    assert "未找到故事板 v2 第 2 页" in resp.json()["detail"]
+    submit_image.assert_not_called()
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    assert [page["page"] for page in updated["storyboards"]["E01-S1"]["board_versions"]["v2"]["pages"]] == [1]
+
+
+def test_submit_storyboard_v3_output_does_not_modify_v1(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v1": {"outputs": [
+                        {"id": "v1_main", "board_status": "needed", "draft_prompt": "v1草稿", "video_parts": []}
+                    ]},
+                    "v3": {"outputs": [
+                        {"id": "v3_p1", "page": 1, "board_status": "needed", "draft_prompt": "v3草稿", "video_parts": []}
+                    ]},
+                },
+            },
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.vidu.submit_image_task", return_value={"task_id": "v3_task"}), \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "storyboard",
+            "mode": "v3",
+            "page": 1,
+            "output_id": "v3_p1",
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "prompt": "v3故事板提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 200
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["E01-S1"]
+    assert board["board_status"] == "needed"
+    assert board["board_versions"]["v1"]["outputs"][0]["board_status"] == "needed"
+    assert board["board_versions"]["v3"]["outputs"][0]["board_status"] == "submitted"
+    assert board["board_versions"]["v3"]["outputs"][0]["board_task_id"] == "v3_task"
+
+
 def test_submit_video_requires_part(tmp_path):
     project_dir = tmp_path / "测试项目"
     project_dir.mkdir()
@@ -808,6 +1381,52 @@ def test_submit_video_clears_previous_output_and_errors(tmp_path):
     assert "video_download_error" not in part
     assert "video_url" not in part
     assert "local_path" not in part
+
+
+def test_submit_video_v1_updates_top_level_parts_when_versions_exist(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    (project_dir / "storyboards" / "E01-S1").mkdir(parents=True)
+    (project_dir / "storyboards" / "E01-S1" / "E01-S1.png").write_bytes(b"fake-board")
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "completed",
+                "video_parts": [{"part": 1, "video_status": "needed", "draft_prompt": "视频提示词"}],
+                "board_versions": {
+                    "v1": {
+                        "board_status": "completed",
+                        "video_parts": [{"part": 1, "video_status": "needed", "draft_prompt": "视频提示词"}],
+                    },
+                    "v2": {"pages": []},
+                },
+            },
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.wetoken.submit_video_task", return_value="video_v1") as submit_video, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "video",
+            "mode": "v1",
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "part": 1,
+            "prompt": "视频提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 200
+    submit_video.assert_called_once()
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    board = updated["storyboards"]["E01-S1"]
+    assert board["video_parts"][0]["video_status"] == "submitted"
+    assert board["video_parts"][0]["video_task_id"] == "video_v1"
+    assert board["board_versions"]["v1"]["video_parts"][0]["video_status"] == "submitted"
+    assert board["board_versions"]["v1"]["outputs"][0]["video_parts"][0]["storyboard_output_id"] == "v1_main"
+    assert board["board_versions"]["v1"]["outputs"][0]["video_parts"][0]["source_image"] == "storyboards/E01-S1/E01-S1.png"
 
 
 def test_submit_video_uses_storyboard_video_params_when_omitted(tmp_path):
@@ -943,6 +1562,46 @@ def test_submit_video_requires_storyboard_reference_image_without_remote_call(tm
     submit_video.assert_not_called()
 
 
+def test_submit_video_v1_does_not_use_v2_primary_storyboard_image(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    board_dir = project_dir / "storyboards" / "E01-S1"
+    board_dir.mkdir(parents=True)
+    (board_dir / "v2_p1.png").write_bytes(b"fake-v2-board")
+    (board_dir / "meta.json").write_text(json.dumps({
+        "name": "E01-S1",
+        "category": "storyboards",
+        "primary_image": "v2_p1.png",
+        "versions": [],
+    }, ensure_ascii=False), encoding="utf-8")
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "completed",
+                "video_parts": [{"part": 1, "video_status": "needed"}],
+            },
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.wetoken.submit_video_task") as submit_video, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "video",
+            "mode": "v1",
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "part": 1,
+            "prompt": "视频提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 400
+    assert "storyboards/E01-S1/E01-S1.png" in resp.json()["detail"]
+    submit_video.assert_not_called()
+
+
 def test_submit_video_adds_declared_and_storyboard_reference_images(tmp_path):
     project_dir = tmp_path / "测试项目"
     (project_dir / "characters" / "婉瑜").mkdir(parents=True)
@@ -978,6 +1637,148 @@ def test_submit_video_adds_declared_and_storyboard_reference_images(tmp_path):
     assert resp.status_code == 200
     submit_video.assert_called_once()
     assert submit_video.call_args.args[2] == [str(char_image), str(board_image)]
+
+
+def test_submit_video_v2_page_uses_that_page_storyboard_reference(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    board_dir = project_dir / "storyboards" / "E01-S1"
+    board_dir.mkdir(parents=True)
+    page_image = board_dir / "v2_p2.png"
+    page_image.write_bytes(b"fake-board-page")
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v1": {"board_status": "needed", "video_parts": []},
+                    "v2": {"pages": [
+                        {"page": 1, "board_status": "needed", "video_parts": []},
+                        {"page": 2, "board_status": "completed", "video_parts": [
+                            {"part": 1, "draft_prompt": "视频提示词", "video_status": "needed"}
+                        ]},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.wetoken.submit_video_task", return_value="video_v2") as submit_video, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "video",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "part": 1,
+            "prompt": "视频提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 200
+    submit_video.assert_called_once()
+    assert submit_video.call_args.args[2] == [str(page_image)]
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    part = updated["storyboards"]["E01-S1"]["board_versions"]["v2"]["pages"][1]["video_parts"][0]
+    assert part["video_status"] == "submitted"
+    assert part["storyboard_mode"] == "v2"
+    assert part["storyboard_output_id"] == "v2_p2"
+    assert part["source_image"] == "storyboards/E01-S1/v2_p2.png"
+
+
+def test_submit_video_rejects_missing_v2_page_without_remote_call(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    project_dir.mkdir()
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v2": {"pages": [
+                        {"page": 1, "board_status": "completed", "video_parts": [
+                            {"part": 1, "draft_prompt": "视频提示词", "video_status": "needed"}
+                        ]},
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.wetoken.submit_video_task") as submit_video, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "video",
+            "mode": "v2",
+            "page": 2,
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "part": 1,
+            "prompt": "视频提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 400
+    assert "未找到故事板 v2 第 2 页" in resp.json()["detail"]
+    submit_video.assert_not_called()
+
+
+def test_submit_video_v3_output_uses_v3_storyboard_reference(tmp_path):
+    project_dir = tmp_path / "测试项目"
+    board_dir = project_dir / "storyboards" / "E01-S1"
+    board_dir.mkdir(parents=True)
+    v3_image = board_dir / "v3_p1.png"
+    v3_image.write_bytes(b"fake-v3-board")
+    pipeline_data = {
+        "project": "测试项目",
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "E01-S1": {
+                "board_status": "needed",
+                "board_versions": {
+                    "v1": {"outputs": [
+                        {"id": "v1_main", "board_status": "needed", "video_parts": []}
+                    ]},
+                    "v3": {"outputs": [
+                        {"id": "v3_p1", "page": 1, "board_status": "completed", "video_parts": [
+                            {"part": 1, "draft_prompt": "v3视频提示词", "video_status": "needed"}
+                        ]}
+                    ]},
+                },
+            }
+        },
+    }
+    (project_dir / "pipeline.json").write_text(json.dumps(pipeline_data, ensure_ascii=False), encoding="utf-8")
+
+    with patch("api.routes.tasks.wetoken.submit_video_task", return_value="video_v3") as submit_video, \
+         patch("api.routes.tasks.get_api_key", return_value="test_key"):
+        resp = client.post("/api/tasks/submit", json={
+            "type": "video",
+            "mode": "v3",
+            "page": 1,
+            "output_id": "v3_p1",
+            "project_path": str(project_dir),
+            "scene_key": "E01-S1",
+            "part": 1,
+            "prompt": "v3视频提示词",
+            "image_paths": [],
+        })
+
+    assert resp.status_code == 200
+    submit_video.assert_called_once()
+    assert submit_video.call_args.args[2] == [str(v3_image)]
+    updated = json.loads((project_dir / "pipeline.json").read_text(encoding="utf-8"))
+    part = updated["storyboards"]["E01-S1"]["board_versions"]["v3"]["outputs"][0]["video_parts"][0]
+    assert part["video_status"] == "submitted"
+    assert part["storyboard_mode"] == "v3"
+    assert part["storyboard_output_id"] == "v3_p1"
+    assert part["source_image"] == "storyboards/E01-S1/v3_p1.png"
+    assert updated["storyboards"]["E01-S1"]["board_status"] == "needed"
 
 
 def test_submit_video_rejects_blank_prompt_without_remote_call(tmp_path):

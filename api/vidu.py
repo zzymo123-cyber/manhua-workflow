@@ -1,9 +1,15 @@
 import base64
+import io
 import time
 import httpx
 from pathlib import Path
 
 from api.errors import describe_exception, describe_remote_error
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 VIDU_BASE = "https://api.vidu.cn"
 SUBMIT_URL = f"{VIDU_BASE}/ent/v2/reference2image"
@@ -32,6 +38,17 @@ def _headers(api_key: str) -> dict:
 
 
 def _img_to_data_uri(path: str) -> str:
+    if Image is not None:
+        try:
+            img = Image.open(path).convert("RGB")
+            img.thumbnail((1024, 1024), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=88)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/jpeg;base64,{b64}"
+        except Exception:
+            pass
+
     ext = path.rsplit(".", 1)[-1].lower()
     mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(ext, "image/png")
     with open(path, "rb") as f:
