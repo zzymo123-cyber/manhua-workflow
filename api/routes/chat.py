@@ -4,8 +4,15 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
 
-from api import llm, pipeline as pl
+from api import llm, pipeline as pl, vidu, wetoken
 from api.routes.settings import get_api_key
+from api.routes.tasks import (
+    _prepare_image_resubmit_after_success,
+    _prepare_video_resubmit_after_success,
+    _video_generation_prompt,
+    _video_ratio_for_version,
+    _video_reference_paths,
+)
 
 router = APIRouter()
 
@@ -15,6 +22,8 @@ class ChatRequest(BaseModel):
     message: str
     history: list[dict] = []
     current_scene_key: Optional[str] = None
+    active_board_version: Optional[str] = None
+    current_board_id: Optional[str] = None
 
 
 # ── 摘要构建 ──────────────────────────────────────────────────────────────────
@@ -33,7 +42,9 @@ def _asset_summary(assets: dict) -> list[dict]:
     return result
 
 
-def _build_system_prompt(project_name: str, scene_key: Optional[str]) -> str:
+def _build_system_prompt(project_name: str, scene_key: Optional[str],
+                         active_board_version: Optional[str] = None,
+                         current_board_id: Optional[str] = None) -> str:
     project_dir = pl.get_project_root(project_name)
     try:
         pipeline_data = pl.read_pipeline(project_dir)
@@ -46,34 +57,37 @@ def _build_system_prompt(project_name: str, scene_key: Optional[str]) -> str:
     prop_summary = _asset_summary(assets.get("props", {}))
 
     board_summary = []
-    for k, b in pipeline_data.get("storyboards", {}).items():
-        board_versions = []
-        for bv in b.get("board_versions", []):
-            draft = bv.get("draft_prompt", "")
-            vp_summary = []
-            for vp in bv.get("video_parts", []):
-                vp_summary.append({
-                    "part": vp["part"],
-                    "status": vp.get("video_status", "needed"),
-                })
-            board_versions.append({
-                "id": bv["id"],
-                "status": bv.get("status", "needed"),
-                "template_variant": bv.get("template_variant", "default"),
+    for board_version, scene_key_item, scene in _iter_storyboard_scenes(pipeline_data):
+        boards = []
+        for board in _scene_boards(scene):
+            draft = board.get("draft_prompt", "")
+            boards.append({
+                "board_id": board.get("board_id", ""),
+                "page": board.get("page", 1),
+                "total_pages": board.get("total_pages", 1),
+                "layout": board.get("layout", scene.get("layout", "")),
+                "shot_count": board.get("shot_count"),
+                "estimated_duration": board.get("estimated_duration"),
+                "status": board.get("status", "needed"),
                 "draft_preview": draft[:80] + ("..." if len(draft) > 80 else ""),
-                "video_parts": vp_summary,
+                "video_parts": [
+                    {"part": vp.get("part"), "status": vp.get("video_status", "needed")}
+                    for vp in board.get("video_parts", [])
+                ],
             })
         board_summary.append({
-            "name": k,
-            "title": b.get("script_title", k),
-            "selected_board_version": b.get("selected_board_version"),
-            "board_versions": board_versions,
+            "board_version": board_version,
+            "scene_key": scene_key_item,
+            "title": scene.get("script_title", scene_key_item),
+            "boards": boards,
         })
 
     # 当前选中场景传完整详情
     scene_context = ""
     if scene_key:
-        storyboard = pipeline_data.get("storyboards", {}).get(scene_key, {})
+        board_version = active_board_version or "v1"
+        storyboard = _get_scene(pipeline_data, board_version, scene_key) or {}
+        current_board = _find_board(storyboard, current_board_id)
         meta = pl.get_meta(project_dir, "storyboards", scene_key)
         panels = []
         if meta:
@@ -84,8 +98,9 @@ def _build_system_prompt(project_name: str, scene_key: Optional[str]) -> str:
         scene_context = f"""
 【当前选中场景（完整详情）】
 场景：{scene_key}
-故事板版本：{json.dumps(storyboard.get('board_versions', []), ensure_ascii=False)}
-selected_board_version：{storyboard.get('selected_board_version')}
+当前故事板版本：{board_version}
+当前分镜板ID：{current_board.get('board_id', '') if current_board else ''}
+当前分镜板：{json.dumps(current_board or {}, ensure_ascii=False)}
 panels：{json.dumps(panels, ensure_ascii=False)}
 """
 
@@ -116,8 +131,9 @@ panels：{json.dumps(panels, ensure_ascii=False)}
 
 数据模型说明：
 - 角色/场景/道具为扁平模型（每个资产只有一份，无版本概念）
-- 故事板支持多版本（board_versions），每个版本内嵌套 video_parts
-- video_parts 为扁平模型（每个分段只有一份，无版本概念）
+- 故事板为 storyboards[board_version][scene_key].boards[]，v1/v2 共用源场景与资产库
+- v1 通常是一场一张 9 格故事板；v2 会按 15 秒以内拆成多张 5-6 镜头分镜板
+- video_parts 挂在具体 board 下，必须带 board_version 和 board_id 才能精确操作
 
 {summary}
 {submitted_hint}{scene_context}
@@ -128,34 +144,28 @@ panels：{json.dumps(panels, ensure_ascii=False)}
 
 读取完整提示词（当需要在原有基础上修改时，先用此 action 获取全文）：
 {{"action":"get_full_prompt","target":"character|scene|prop","name":"名称"}}
-{{"action":"get_full_prompt","target":"storyboard","name":"场景key","version_id":0}}
-{{"action":"get_full_prompt","target":"video_part","name":"场景key","part":1,"version_id":0}}
+{{"action":"get_full_prompt","target":"storyboard","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01"}}
+{{"action":"get_full_prompt","target":"video_part","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01","part":1}}
 
 修改草稿提示词：
 {{"action":"update_draft_prompt","target":"character|scene|prop","name":"名称","value":"完整新提示词"}}
-{{"action":"update_draft_prompt","target":"storyboard","name":"场景key","version_id":0,"value":"完整新提示词"}}
-{{"action":"update_draft_prompt","target":"video_part","name":"场景key","part":1,"version_id":0,"value":"完整新提示词"}}
+{{"action":"update_draft_prompt","target":"storyboard","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01","value":"完整新提示词"}}
+{{"action":"update_draft_prompt","target":"video_part","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01","part":1,"value":"完整新提示词"}}
 
 重新生成提示词（调 LLM 重新生成，自动写入草稿）：
 {{"action":"generate_prompt","target":"character|scene|prop","name":"名称","template_variant":"default"}}
 
 提交任务到生成队列：
 {{"action":"submit_task","target":"character|scene|prop","name":"名称"}}
-{{"action":"submit_task","target":"storyboard","name":"场景key","version_id":0}}
-{{"action":"submit_task","target":"video_part","name":"场景key","part":1,"version_id":0}}
-
-选定故事板版本（只能选定已完成的版本）：
-{{"action":"select_version","target":"storyboard","name":"场景key","version_id":0}}
-
-添加故事板版本：
-{{"action":"add_version","target":"storyboard","name":"场景key","template_variant":"default"}}
+{{"action":"submit_task","target":"storyboard","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01"}}
+{{"action":"submit_task","target":"video_part","name":"场景key","board_version":"v2","board_id":"s01_01_v2_p01","part":1}}
 
 【重要规则】
 - 需要修改某个资产的提示词时，必须先用 get_full_prompt 获取完整内容，再基于原文修改
 - get_full_prompt 是中间步骤，不要告诉用户"我去读取一下"，直接在内部处理
 - submit_task 会消耗 API 配额，直接执行，不需要再次确认
 - 角色/场景/道具无版本概念，不需要指定 version_id
-- 故事板的 version_id 指向 board_versions 中的版本编号
+- 故事板必须优先使用 board_version 和 board_id；不要再使用旧的 board_versions/version_id 结构
 - 返回合法 JSON，不能有其他内容：{{"reply":"...","actions":[...]}}"""
 
 
@@ -168,7 +178,71 @@ def _find_board_version(board: dict, version_id: int) -> dict | None:
     return None
 
 
-def _get_full_prompt(project_name: str, target: str, name: str, version_id: int = 0) -> str:
+def _uses_new_storyboards(storyboards: dict) -> bool:
+    if not storyboards:
+        return False
+    first = next(iter(storyboards.values()))
+    return not (isinstance(first, dict) and any(k in first for k in ("episode", "board_versions", "script_title")))
+
+
+def _iter_storyboard_scenes(data: dict):
+    storyboards = data.get("storyboards", {})
+    if _uses_new_storyboards(storyboards):
+        for board_version, scenes in storyboards.items():
+            if not isinstance(scenes, dict):
+                continue
+            for scene_key, scene in scenes.items():
+                if isinstance(scene, dict):
+                    yield board_version, scene_key, scene
+    else:
+        for scene_key, scene in storyboards.items():
+            if isinstance(scene, dict):
+                yield "legacy", scene_key, scene
+
+
+def _get_scene(data: dict, board_version: str, scene_key: str) -> dict | None:
+    storyboards = data.get("storyboards", {})
+    if _uses_new_storyboards(storyboards):
+        return storyboards.get(board_version, {}).get(scene_key)
+    return storyboards.get(scene_key)
+
+
+def _scene_boards(scene: dict) -> list[dict]:
+    boards = scene.get("boards")
+    if isinstance(boards, list) and boards:
+        return boards
+    if isinstance(scene.get("board_versions"), list):
+        return scene.get("board_versions", [])
+    return [scene]
+
+
+def _find_board(scene: dict, board_id: str | None = None, version_id: int = 0) -> dict | None:
+    if not scene:
+        return None
+    boards = scene.get("boards")
+    if isinstance(boards, list) and boards:
+        if board_id:
+            return next((b for b in boards if b.get("board_id") == board_id), None)
+        return boards[0]
+    if "board_versions" in scene:
+        return _find_board_version(scene, version_id)
+    return scene
+
+
+def _sync_scene_from_first_board(scene: dict) -> None:
+    boards = scene.get("boards")
+    if not isinstance(boards, list) or not boards:
+        return
+    first = boards[0]
+    scene["draft_prompt"] = first.get("draft_prompt", "")
+    scene["status"] = first.get("status", "needed")
+    scene["board_task_id"] = first.get("board_task_id")
+    scene["video_parts"] = first.get("video_parts", [])
+
+
+def _get_full_prompt(project_name: str, target: str, name: str, version_id: int = 0,
+                     board_version: str = "v1", board_id: str | None = None,
+                     part: int | None = None) -> str:
     """读取指定资产的完整 draft_prompt"""
     project_dir = pl.get_project_root(project_name)
     try:
@@ -183,15 +257,15 @@ def _get_full_prompt(project_name: str, target: str, name: str, version_id: int 
     elif target == "prop":
         return data.get("assets", {}).get("props", {}).get(name, {}).get("draft_prompt", "")
     elif target == "storyboard":
-        board = data.get("storyboards", {}).get(name, {})
-        bv = _find_board_version(board, version_id)
+        scene = _get_scene(data, board_version, name) or {}
+        bv = _find_board(scene, board_id, version_id)
         return bv.get("draft_prompt", "") if bv else ""
     elif target == "video_part":
-        board = data.get("storyboards", {}).get(name, {})
-        bv = _find_board_version(board, version_id)
+        scene = _get_scene(data, board_version, name) or {}
+        bv = _find_board(scene, board_id, version_id)
         if bv:
             for vp in bv.get("video_parts", []):
-                if vp.get("part") == version_id:  # part number passed as version_id for video_part
+                if vp.get("part") == (part or version_id):
                     return vp.get("draft_prompt", "")
         return ""
     return ""
@@ -223,6 +297,8 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
             target = action.get("target")
             value = action.get("value", "")
             version_id = action.get("version_id", 0)
+            board_version = action.get("board_version") or action.get("version") or "v1"
+            board_id = action.get("board_id")
             ok = False
             if target in ("character", "scene", "prop"):
                 cat_map = {"character": "characters", "scene": "scenes", "prop": "props"}
@@ -232,23 +308,25 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
                     asset["status"] = "drafted"
                     ok = True
             elif target == "storyboard":
-                board = data.get("storyboards", {}).get(name)
-                if board:
-                    bv = _find_board_version(board, version_id)
+                scene = _get_scene(data, board_version, name)
+                if scene:
+                    bv = _find_board(scene, board_id, version_id)
                     if bv:
                         bv["draft_prompt"] = value
                         bv["status"] = "drafted"
+                        _sync_scene_from_first_board(scene)
                         ok = True
             elif target == "video_part":
                 part = action.get("part")
-                board = data.get("storyboards", {}).get(name)
-                if board:
-                    bv = _find_board_version(board, version_id)
+                scene = _get_scene(data, board_version, name)
+                if scene:
+                    bv = _find_board(scene, board_id, version_id)
                     if bv:
                         for vp in bv.get("video_parts", []):
                             if vp.get("part") == part:
                                 vp["draft_prompt"] = value
                                 vp["video_status"] = "drafted"
+                                _sync_scene_from_first_board(scene)
                                 ok = True
                                 break
             if ok:
@@ -269,8 +347,10 @@ def _execute_actions(project_name: str, actions: list[dict]) -> list[dict]:
         elif act == "submit_task":
             target = action.get("target")
             version_id = action.get("version_id", 0)
+            board_version = action.get("board_version") or action.get("version") or "v1"
+            board_id = action.get("board_id")
             part = action.get("part")
-            ok, label = _do_submit_task(project_name, data, target, name, version_id, part)
+            ok, label = _do_submit_task(project_name, data, target, name, version_id, part, board_version, board_id)
             if ok:
                 changed = True
             results.append({"action": act, "target": target, "name": name, "ok": ok, "label": label})
@@ -329,9 +409,9 @@ def _do_generate_prompt(project_name: str, target: str, name: str,
 
 
 def _do_submit_task(project_name: str, data: dict, target: str, name: str,
-                      version_id: int, part=None) -> tuple[bool, str]:
+                      version_id: int, part=None, board_version: str = "v1",
+                      board_id: str | None = None) -> tuple[bool, str]:
     """提交任务到 Vidu/Wetoken，返回 (成功, 描述)"""
-    from api import vidu, wetoken
     project_dir = pl.get_project_root(project_name)
     vidu_key = get_api_key("VIDU_API_KEY")
     wetoken_key = get_api_key("WETOKEN_API_KEY")
@@ -344,6 +424,8 @@ def _do_submit_task(project_name: str, data: dict, target: str, name: str,
                 if not prompt:
                     return False, f"「{name}」没有提示词"
                 result = vidu.submit_image_task(vidu_key, prompt, [], ratio="3:4")
+                now = datetime.datetime.now().isoformat()
+                _prepare_image_resubmit_after_success(project_dir, asset, now)
                 asset["status"] = "submitted"
                 asset["task_id"] = result["task_id"]
                 return True, f"角色「{name}」已提交"
@@ -355,6 +437,8 @@ def _do_submit_task(project_name: str, data: dict, target: str, name: str,
                 if not prompt:
                     return False, f"「{name}」没有提示词"
                 result = vidu.submit_image_task(vidu_key, prompt, [], ratio="16:9")
+                now = datetime.datetime.now().isoformat()
+                _prepare_image_resubmit_after_success(project_dir, asset, now)
                 asset["status"] = "submitted"
                 asset["task_id"] = result["task_id"]
                 return True, f"场景「{name}」已提交"
@@ -366,25 +450,30 @@ def _do_submit_task(project_name: str, data: dict, target: str, name: str,
                 if not prompt:
                     return False, f"「{name}」没有提示词"
                 result = vidu.submit_image_task(vidu_key, prompt, [], ratio="1:1")
+                now = datetime.datetime.now().isoformat()
+                _prepare_image_resubmit_after_success(project_dir, asset, now)
                 asset["status"] = "submitted"
                 asset["task_id"] = result["task_id"]
                 return True, f"道具「{name}」已提交"
 
         elif target == "storyboard":
-            board = data.get("storyboards", {}).get(name, {})
-            bv = _find_board_version(board, version_id)
+            scene = _get_scene(data, board_version, name) or {}
+            bv = _find_board(scene, board_id, version_id)
             if bv:
                 prompt = bv.get("draft_prompt", "")
                 if not prompt:
-                    return False, f"故事板「{name}」v{version_id} 没有提示词"
+                    return False, f"故事板「{name}」{board_version}/{board_id or version_id} 没有提示词"
                 result = vidu.submit_image_task(vidu_key, prompt, [], ratio="16:9")
+                now = datetime.datetime.now().isoformat()
+                _prepare_image_resubmit_after_success(project_dir, bv, now)
                 bv["status"] = "submitted"
                 bv["board_task_id"] = result["task_id"]
-                return True, f"故事板「{name}」v{version_id} 已提交"
+                _sync_scene_from_first_board(scene)
+                return True, f"故事板「{name}」{board_version}/{board_id or version_id} 已提交"
 
         elif target == "video_part":
-            board = data.get("storyboards", {}).get(name, {})
-            bv = _find_board_version(board, version_id)
+            scene = _get_scene(data, board_version, name) or {}
+            bv = _find_board(scene, board_id, version_id)
             if bv:
                 for vp in bv.get("video_parts", []):
                     if vp.get("part") == part:
@@ -392,9 +481,23 @@ def _do_submit_task(project_name: str, data: dict, target: str, name: str,
                         prompt = vp.get("draft_prompt", vp.get("prompt", ""))
                         if not prompt:
                             return False, f"「{name}」Part {part} 没有提示词"
-                        task_id = wetoken.submit_video_task(wetoken_key, prompt, [], duration=duration, ratio="16:9")
+                        prompt = _video_generation_prompt(prompt)
+                        ratio = _video_ratio_for_version(board_version)
+                        image_paths = _video_reference_paths(
+                            project_dir, data, board_version, name, board_id, []
+                        )
+                        task_id = wetoken.submit_video_task(
+                            wetoken_key, prompt, image_paths,
+                            duration=duration, ratio=ratio, project_dir=project_dir,
+                        )
+                        now = datetime.datetime.now().isoformat()
+                        _prepare_video_resubmit_after_success(project_dir, vp, now)
                         vp["video_status"] = "submitted"
                         vp["video_task_id"] = task_id
+                        vp["draft_prompt"] = prompt
+                        vp["prompt"] = prompt
+                        vp["ratio"] = ratio
+                        _sync_scene_from_first_board(scene)
                         return True, f"已提交视频「{name}」Part {part}"
 
         return False, f"未找到目标: {target} {name}"
@@ -453,8 +556,11 @@ def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
             target = a.get("target")
             name = a.get("name")
             version_id = a.get("version_id", 0)
-            full = _get_full_prompt(project_name, target, name, version_id)
-            fetched.append(f"【{target}「{name}」v{version_id} 完整提示词】\n{full}")
+            board_version = a.get("board_version") or a.get("version") or "v1"
+            board_id = a.get("board_id")
+            part = a.get("part")
+            full = _get_full_prompt(project_name, target, name, version_id, board_version, board_id, part)
+            fetched.append(f"【{target}「{name}」{board_version}/{board_id or version_id} 完整提示词】\n{full}")
 
         augmented_messages = messages + [
             {"role": "assistant", "content": result.get("_raw", json.dumps(result, ensure_ascii=False))},
@@ -475,7 +581,12 @@ def _run_agent(api_key: str, messages: list[dict], system_prompt: str,
 @router.post("/chat")
 async def chat(req: ChatRequest):
     api_key = get_api_key("IDEALAB_API_KEY")
-    system_prompt = _build_system_prompt(req.project_name, req.current_scene_key)
+    system_prompt = _build_system_prompt(
+        req.project_name,
+        req.current_scene_key,
+        req.active_board_version,
+        req.current_board_id,
+    )
 
     history = req.history[-20:]
     messages = history + [{"role": "user", "content": req.message}]

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>精品原型v1</title>
+<title>Manhua Workflow v5</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -60,6 +60,11 @@ svg.lucide-lg { width: 20px; height: 20px; }
 #header .meta:hover { color: var(--text-primary); }
 #header .tasks-badge { background: var(--bg-muted); border-radius: 12px;
                         padding: 3px 10px; font-size: var(--text-sm); color: var(--warning); }
+#header .header-action { background: none; border: 1px solid var(--border);
+                         color: var(--text-secondary); cursor: pointer; padding: var(--space-2) var(--space-3);
+                         border-radius: var(--radius-sm); display: flex; align-items: center; gap: var(--space-1);
+                         font-size: var(--text-sm); }
+#header .header-action:hover { background: var(--bg-muted); color: var(--accent); }
 #header .settings-btn { margin-left: auto; background: none; border: none;
                         color: var(--text-secondary); cursor: pointer; padding: var(--space-2) var(--space-3);
                         border-radius: var(--radius-sm); display: flex; align-items: center; }
@@ -143,6 +148,8 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .asset-card .card-name { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); color: var(--text-primary); }
 .asset-card .card-seed { font-size: var(--text-xs); color: var(--text-muted); line-height: 1.4; max-height: 36px; overflow: hidden; }
 .asset-card .card-status { margin-top: var(--space-2); }
+.asset-card .card-task-meta { margin-top: var(--space-1); font-size: var(--text-xs); color: var(--text-muted); line-height: 1.35; }
+.asset-card .card-task-error { color: var(--error); }
 
 /* 场景缩略卡片网格 */
 .scene-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); padding: var(--space-4); }
@@ -165,8 +172,17 @@ svg.lucide-lg { width: 20px; height: 20px; }
               overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .card-thumb .placeholder { color: var(--text-muted); }
+.card-thumb .missing-file { color: var(--error); font-size: var(--text-xs); padding: var(--space-2); text-align: center; }
 .card-thumb .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--warning);
                        border-radius: 50%; animation: spin 0.8s linear infinite; }
+.card-thumb.image-loading { position: relative; }
+.card-thumb.image-loading img { opacity: 0; }
+.card-thumb.image-loading .spinner { position: absolute; }
+.card-thumb:not(.image-loading) .image-spinner { display: none; }
+.stc-thumb.image-loading { position: relative; }
+.stc-thumb.image-loading img { opacity: 0; }
+.stc-thumb.image-loading .spinner { position: absolute; }
+.stc-thumb:not(.image-loading) .image-spinner { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 #detail-panel { flex: 1; overflow-y: auto; padding: var(--space-5); display: none; }
@@ -192,6 +208,8 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .btn-secondary:hover { background: var(--bg-surface); color: var(--text-primary); }
 .btn-secondary:disabled { background: var(--bg-muted); color: var(--text-muted); cursor: not-allowed; }
 .btn-danger { background: var(--error); color: var(--text-on-accent); }
+.btn .spinner, .va-btn .spinner, .header-action .spinner { display: inline-block; border: 2px solid var(--border); border-top-color: currentColor;
+                       border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
 .btn-row { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
 .video-part-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);
                    padding: var(--space-3); margin-bottom: var(--space-2); }
@@ -202,14 +220,23 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay-scrim);
                   z-index: 100; justify-content: center; align-items: center; }
 .modal-overlay.visible { display: flex; }
+#settings-overlay { z-index: 120; }
 .modal { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg);
-         padding: var(--space-6); width: 440px; max-width: 90vw; box-shadow: var(--shadow-lg); }
+         padding: var(--space-6); width: 440px; max-width: 90vw; max-height: 90vh;
+         overflow-y: auto; box-shadow: var(--shadow-lg); }
 .modal h2 { font-size: var(--text-lg); color: var(--accent); margin-bottom: var(--space-4); }
 .modal label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-1); margin-top: var(--space-3); }
-.modal input { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm);
+.modal input, .modal select { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm);
               padding: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--text-primary); }
-.modal input:focus { outline: none; border-color: var(--accent-muted); }
+.modal input:focus, .modal select:focus { outline: none; border-color: var(--accent-muted); }
 .modal .btn-row { margin-top: var(--space-5); justify-content: flex-end; }
+.document-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.document-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2);
+                 border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); }
+.document-item-main { min-width: 0; flex: 1; }
+.document-item-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-item-path { font-size: var(--text-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-empty { color: var(--text-muted); font-size: var(--text-sm); padding: var(--space-3); background: var(--bg-surface); border-radius: var(--radius-sm); }
 
 #agent-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px;
                background: var(--bg-elevated); border-left: 1px solid var(--border);
@@ -299,9 +326,10 @@ svg.lucide-lg { width: 20px; height: 20px; }
 <body>
 
 <div id="header">
-  <h1>精品原型v1</h1>
+  <h1>Manhua Workflow v5</h1>
   <span class="meta" id="project-meta" onclick="openImportDialog()">未加载项目</span>
   <span class="tasks-badge" id="tasks-badge" style="display:none">0 任务进行中</span>
+  <button class="header-action" id="documents-btn" onclick="openDocumentsDialog()" title="打开本地输出文档和资产目录" disabled><i data-lucide="file-output"></i> 文档/资产</button>
   <button class="settings-btn" onclick="openSettings()" title="设置"><i data-lucide="settings"></i></button>
 </div>
 
@@ -327,9 +355,10 @@ svg.lucide-lg { width: 20px; height: 20px; }
   <div id="content-panel">
     <div id="batch-toolbar">
       <span class="toolbar-label" id="toolbar-label">批量操作</span>
-      <button class="btn btn-secondary" id="btn-batch-gen" onclick="batchGeneratePrompts()">全部生成提示词</button>
-      <button class="btn btn-primary" id="btn-batch-submit" onclick="batchSubmitAll()">全部提交</button>
-      <button class="btn btn-danger" id="btn-batch-retry" onclick="batchRetryFailed()">全部重试失败</button>
+      <button class="btn btn-secondary" id="btn-refresh-status" onclick="refreshStatus()">刷新状态</button>
+      <button class="btn btn-secondary" id="btn-batch-gen" onclick="batchGeneratePrompts(this)">全部生成提示词</button>
+      <button class="btn btn-primary" id="btn-batch-submit" onclick="batchSubmitAll(this)">全部提交</button>
+      <button class="btn btn-danger" id="btn-batch-retry" onclick="batchRetryFailed(this)">全部重试失败</button>
       <span class="batch-progress" id="batch-progress"></span>
     </div>
     <div class="empty-state" id="empty-hint">选择左侧场景查看详情</div>
@@ -350,6 +379,17 @@ svg.lucide-lg { width: 20px; height: 20px; }
     <input id="set-idealab" type="password" placeholder="输入 ideaLAB API Key">
     <label>ideaLAB Base URL</label>
     <input id="set-idealab-url" type="text" placeholder="https://api.idealab.com/v1">
+    <label>LLM Provider</label>
+    <select id="set-llm-provider">
+      <option value="idealab">ideaLAB</option>
+      <option value="deepseek">DeepSeek</option>
+    </select>
+    <label>DeepSeek API Key</label>
+    <input id="set-deepseek" type="password" placeholder="输入 DeepSeek API Key">
+    <label>DeepSeek Base URL</label>
+    <input id="set-deepseek-url" type="text" placeholder="https://api.deepseek.com">
+    <label>DeepSeek Model</label>
+    <input id="set-deepseek-model" type="text" placeholder="deepseek-v4-flash">
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
       <button class="btn btn-primary" onclick="saveSettings()">保存</button>
@@ -377,9 +417,21 @@ svg.lucide-lg { width: 20px; height: 20px; }
     <div id="import-preview" class="import-preview-box"></div>
     <div id="import-error" style="display:none" class="error-banner"></div>
     <div class="btn-row" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="openSettings()" style="margin-right:auto"><i data-lucide="settings"></i> API 设置</button>
       <button class="btn btn-secondary" id="import-cancel-btn" onclick="closeImportDialog()">取消</button>
       <button class="btn btn-secondary" id="import-parse-btn" onclick="doParsePreview()">解析预览</button>
       <button class="btn btn-primary" id="import-confirm-btn" onclick="doImportConfirm()" disabled>导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 输出文档弹窗 -->
+<div class="modal-overlay" id="documents-overlay" onclick="if(event.target===this)closeDocumentsDialog()">
+  <div class="modal" style="width:560px">
+    <h2>文档/资产</h2>
+    <div id="documents-list" class="document-list"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeDocumentsDialog()">关闭</button>
     </div>
   </div>
 </div>
@@ -415,6 +467,7 @@ let state = {
   activeBoardVersion: null,   // 全局当前版本键，如 "v1"/"v2"
   versionQuality: 'high',
   versionResolution: '2K',
+  actionLocks: new Set(),
 };
 
 async function init() {
@@ -445,6 +498,7 @@ async function loadProject(projectPath) {
       state.activeBoardVersion = vers.length > 0 ? vers[0] : null;
     }
     localStorage.setItem('manhua_project_path', projectPath);
+    document.getElementById('documents-btn').disabled = false;
     renderAll();
     startPolling();
   } catch(e) { showError('加载失败：' + e.message); }
@@ -487,15 +541,54 @@ function hasSubmittedTasks() {
     if (!scenes || typeof scenes !== 'object') continue;
     for (const scene of Object.values(scenes)) {
       if (!scene || typeof scene !== 'object') continue;
-      if (scene.status === 'submitted') return true;
-      for (const vp of scene.video_parts || [])
-        if (vp.video_status === 'submitted') return true;
+      for (const board of getSceneBoards(scene)) {
+        if (board.status === 'submitted') return true;
+        for (const vp of board.video_parts || [])
+          if (vp.video_status === 'submitted') return true;
+      }
     }
   }
   return false;
 }
 
 function deriveAssetStatus(asset) { return asset?.status || 'needed'; }
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return '';
+  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (seconds < 60) return `${seconds}s前`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h前`;
+  return `${Math.floor(hours / 24)}d前`;
+}
+
+function taskMetaHtml(info, statusField = 'status', taskField = 'task_id') {
+  const status = info?.[statusField] || 'needed';
+  const rows = [];
+  if (status === 'submitted') {
+    rows.push(`已提交${info.submitted_at ? ` · ${relativeTime(info.submitted_at)}` : ''}`);
+    if (info.last_checked_at) rows.push(`最近检查 · ${relativeTime(info.last_checked_at)}`);
+    if (info[taskField]) rows.push(`任务 ${String(info[taskField]).slice(-8)}`);
+    if (info.status_message) rows.push(info.status_message);
+  } else if (status === 'failed') {
+    rows.push(info.error || info.status_message || '生成失败');
+  } else if (status === 'completed' && info.completed_at) {
+    rows.push(`完成 · ${relativeTime(info.completed_at)}`);
+  }
+  if (!rows.length) return '';
+  const cls = status === 'failed' ? ' card-task-error' : '';
+  return `<div class="card-task-meta${cls}">${rows.map(escapeHtml).join('<br>')}</div>`;
+}
 
 // 获取 storyboards 顶层版本键列表，如 ["v1","v2"]
 function getAvailableVersionKeys() {
@@ -507,6 +600,63 @@ function getAvailableVersionKeys() {
 function getActiveScene(sceneKey) {
   if (!state.activeBoardVersion) return null;
   return state.pipeline?.storyboards?.[state.activeBoardVersion]?.[sceneKey] || null;
+}
+
+function getSceneBoards(scene) {
+  if (!scene || typeof scene !== 'object') return [];
+  if (Array.isArray(scene.boards)) return scene.boards;
+  if (Array.isArray(scene.boards) && scene.boards.length) return scene.boards;
+  return [scene];
+}
+
+function getBoardById(scene, boardId) {
+  const boards = getSceneBoards(scene);
+  if (boardId) return boards.find(b => b.board_id === boardId) || null;
+  return boards[0] || null;
+}
+
+function boardDomId(board) {
+  return String(board?.board_id || 'legacy').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function boardAssetRefs(scene, board) {
+  const refs = board?.asset_refs || {};
+  return {
+    characters: board?.characters || refs.characters || scene?.characters_in_scene || [],
+    scene: board?.scene_location || refs.scene || scene?.scene_location || '',
+    props: board?.props || refs.props || [],
+  };
+}
+
+function assetRefImagePaths(scene, board) {
+  const refs = boardAssetRefs(scene, board);
+  const paths = [];
+  for (const char of (refs.characters || [])) paths.push(`characters/${char}/${char}.png`);
+  if (refs.scene) paths.push(`scenes_props/${refs.scene}/${refs.scene}.png`);
+  for (const prop of (refs.props || [])) paths.push(`scenes_props/${prop}/${prop}.png`);
+  return Array.from(new Set(paths));
+}
+
+function boardImagePath(ver, sceneKey, board) {
+  const filename = board?.board_id ? `${board.board_id}.png` : `${sceneKey}.png`;
+  return `storyboards/${ver}/${sceneKey}/${filename}`;
+}
+
+function assetFileUrl(filePath, versionKey = '') {
+  const params = new URLSearchParams({
+    project_path: state.projectPath || '',
+    file_path: filePath || '',
+  });
+  if (versionKey) params.set('_v', versionKey);
+  return `/api/asset-file?${params.toString()}`;
+}
+
+function imageVersionKey(info) {
+  return info?.completed_at || info?.submitted_at || info?.task_id || state.pipeline?.updated_at || '';
+}
+
+function assetResultPath(info, fallbackPath) {
+  return info?.result_url || info?.local_path || fallbackPath;
 }
 
 function getDependencyInfo() {
@@ -532,8 +682,9 @@ function renderAll() {
   // 显示当前版本的场景数
   const activeScenesDict = state.activeBoardVersion ? (p.storyboards?.[state.activeBoardVersion] || {}) : {};
   const activeScenes = Object.values(activeScenesDict).filter(s => s && typeof s === 'object').length;
+  const activeBoards = Object.values(activeScenesDict).reduce((sum, s) => sum + getSceneBoards(s).length, 0);
   const verKeys = getAvailableVersionKeys();
-  document.getElementById('project-meta').textContent = `${p.project} · ${verKeys.length} 版本 · ${activeScenes} 场景`;
+  document.getElementById('project-meta').textContent = `${p.project} · ${verKeys.length} 版本 · ${activeScenes} 场景 · ${activeBoards} 张板`;
 
   let inProgress = 0;
   for (const v of Object.values(p.assets?.characters || {})) if (v.status === 'submitted') inProgress++;
@@ -543,8 +694,10 @@ function renderAll() {
     if (!scenes || typeof scenes !== 'object') continue;
     for (const scene of Object.values(scenes)) {
       if (!scene || typeof scene !== 'object') continue;
-      if (scene.status === 'submitted') inProgress++;
-      for (const vp of scene.video_parts || []) if (vp.video_status === 'submitted') inProgress++;
+      for (const board of getSceneBoards(scene)) {
+        if (board.status === 'submitted') inProgress++;
+        for (const vp of board.video_parts || []) if (vp.video_status === 'submitted') inProgress++;
+      }
     }
   }
   const badge = document.getElementById('tasks-badge');
@@ -571,6 +724,15 @@ function renderVersionPanel() {
   const tabsEl = document.getElementById('ver-tabs');
   const actionsEl = document.getElementById('ver-actions');
 
+  if (keys.length === 0) {
+    tabsEl.innerHTML = '<div class="ver-tab active">未选择</div>';
+    actionsEl.innerHTML = `
+      <button class="va-btn" onclick="selectStoryboardRoute('v1', this)" ${state.batchRunning?'disabled':''}>选择 v1 九宫格路线</button>
+      <button class="va-btn" onclick="selectStoryboardRoute('v2', this)" ${state.batchRunning?'disabled':''}>选择 v2 导演分镜路线</button>
+    `;
+    return;
+  }
+
   let tabsHtml = '';
   for (const vk of keys) {
     const isActive = vk === state.activeBoardVersion;
@@ -594,9 +756,9 @@ function renderVersionPanel() {
         <option value="1K"${state.versionResolution==='1K'?' selected':''}>1K</option>
       </select>
     </div>
-    <button class="va-btn" onclick="batchGenBoardPrompts()" ${state.batchRunning?'disabled':''}>批量生成提示词</button>
-    <button class="va-btn" onclick="batchSubmitBoards()" ${state.batchRunning?'disabled':''}>批量生成板图</button>
-    <button class="va-btn va-btn-secondary" onclick="batchSubmitVideos()" ${state.batchRunning?'disabled':''}>批量提交视频</button>
+    <button class="va-btn" onclick="batchGenBoardPrompts(this)" ${state.batchRunning?'disabled':''}>批量生成提示词</button>
+    <button class="va-btn" onclick="batchSubmitBoards(this)" ${state.batchRunning?'disabled':''}>批量生成板图</button>
+    <button class="va-btn va-btn-secondary" onclick="batchSubmitVideos(this)" ${state.batchRunning?'disabled':''}>批量提交视频</button>
   `;
 }
 
@@ -656,33 +818,49 @@ function renderSceneGrid(container) {
   const ver = state.activeBoardVersion;
   const scenes = ver ? (p.storyboards?.[ver] || {}) : {};
   if (Object.keys(scenes).length === 0) {
-    container.innerHTML = `<div class="empty-state">${ver ? `版本 ${ver} 暂无场景` : '暂无故事板数据'}</div>`;
+    if (!ver) {
+      container.innerHTML = `<div class="empty-state">
+        <div style="margin-bottom:12px">请选择一条故事板生产线</div>
+        <div class="btn-row" style="justify-content:center">
+          <button class="btn btn-secondary" onclick="selectStoryboardRoute('v1', this)">v1 九宫格路线</button>
+          <button class="btn btn-primary" onclick="selectStoryboardRoute('v2', this)">v2 导演分镜路线</button>
+        </div>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="empty-state">版本 ${ver} 暂无场景</div>`;
+    }
     return;
   }
 
   let html = '<div class="scene-thumb-grid">';
   for (const [key, scene] of Object.entries(scenes)) {
     if (!scene || typeof scene !== 'object') continue;
-    const status = scene.status || 'needed';
-    const isCompleted = status === 'completed';
-    const isSubmitted = status === 'submitted';
-    const vidParts = scene.video_parts || [];
+    const boards = getSceneBoards(scene);
+    const firstBoard = boards[0] || scene;
+    const boardDone = boards.filter(b => b.status === 'completed').length;
+    const boardSubmitted = boards.some(b => b.status === 'submitted');
+    const isCompleted = boardDone > 0;
+    const isSubmitted = boardSubmitted;
+    const vidParts = boards.flatMap(b => b.video_parts || []);
     const vidDone = vidParts.filter(vp => vp.video_status === 'completed').length;
     const ep = scene.episode || 1;
 
     let thumbHtml;
     if (isCompleted) {
-      thumbHtml = `<div class="stc-thumb"><img src="/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=storyboards/${key}/${key}.png" onerror="this.parentElement.innerHTML='板图'"></div>`;
+      const completedBoard = boards.find(b => b.status === 'completed') || firstBoard;
+      const imgPath = assetResultPath(completedBoard, boardImagePath(ver, key, completedBoard));
+      thumbHtml = `<div class="stc-thumb image-loading"><div class="spinner image-spinner"></div><img loading="lazy" src="${assetFileUrl(imgPath, imageVersionKey(completedBoard))}" onload="this.parentElement.classList.remove('image-loading')" onerror="this.parentElement.classList.remove('image-loading');this.parentElement.innerHTML='板图缺失'"></div>`;
     } else if (isSubmitted) {
       thumbHtml = `<div class="stc-thumb"><div class="spinner"></div></div>`;
     } else {
       thumbHtml = `<div class="stc-thumb">未生成</div>`;
     }
 
-    const promptPreview = (scene.draft_prompt || '').substring(0, 50);
+    const promptPreview = (firstBoard.draft_prompt || scene.draft_prompt || '').substring(0, 50);
+    const planStatus = boards.length ? (firstBoard.status || scene.status || 'unplanned') : (scene.status || 'unplanned');
     const statusLabel = state.currentPhase === 'video_prompts'
-      ? `板图: ${status} · 视频: ${vidDone}/${vidParts.length}`
-      : `板图: ${status}`;
+      ? `板图: ${boardDone}/${boards.length} · 视频: ${vidDone}/${vidParts.length || '-'}`
+      : `规划: ${planStatus} · 板图: ${boardDone}/${boards.length || '-'}`;
 
     html += `<div class="scene-thumb-card" onclick="selectScene('${key.replace(/'/g,"\\'")}')">
       ${thumbHtml}
@@ -713,12 +891,13 @@ function updateStageProgress() {
   const activeScenes = state.activeBoardVersion
     ? Object.values(p.storyboards?.[state.activeBoardVersion] || {}).filter(s => s && typeof s === 'object')
     : [];
-  const boardTotal = activeScenes.length;
-  const boardDone = activeScenes.filter(s => s.status === 'completed').length;
+  const activeBoards = activeScenes.flatMap(s => getSceneBoards(s));
+  const boardTotal = activeBoards.length;
+  const boardDone = activeBoards.filter(b => b.status === 'completed').length;
 
   let vidTotal = 0, vidDone = 0;
-  for (const scene of activeScenes) {
-    for (const vp of (scene.video_parts || [])) {
+  for (const board of activeBoards) {
+    for (const vp of (board.video_parts || [])) {
       vidTotal++;
       if (vp.video_status === 'completed') vidDone++;
     }
@@ -758,7 +937,8 @@ function renderAssetGrid(container) {
     let thumbHtml;
     if (assetStatus === 'completed') {
       const fileDir = (category === 'scenes' || category === 'props') ? 'scenes_props' : category;
-      thumbHtml = `<div class="card-thumb"><img src="/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${fileDir}/${encodeURIComponent(name)}/${encodeURIComponent(name)}.png" onerror="this.parentElement.innerHTML='<i data-lucide=image class=lucide-lg></i>';lucide.createIcons()"></div>`;
+      const imgPath = assetResultPath(info, `${fileDir}/${name}/${name}.png`);
+      thumbHtml = `<div class="card-thumb image-loading"><div class="spinner image-spinner"></div><img loading="lazy" src="${assetFileUrl(imgPath, imageVersionKey(info))}" onload="this.parentElement.classList.remove('image-loading')" onerror="this.parentElement.classList.remove('image-loading');this.parentElement.innerHTML='<div class=missing-file>本地图片缺失<br>等待重新拉取</div>'"></div>`;
     } else if (assetStatus === 'submitted') {
       thumbHtml = `<div class="card-thumb"><div class="spinner"></div></div>`;
     } else {
@@ -766,9 +946,10 @@ function renderAssetGrid(container) {
     }
     html += `<div class="asset-card${failedClass}" onclick="selectAsset('${name.replace(/'/g,"\\'")}')">
       ${thumbHtml}
-      <div class="card-name">${name}</div>
-      <div class="card-seed">${seedPreview}</div>
+      <div class="card-name">${escapeHtml(name)}</div>
+      <div class="card-seed">${escapeHtml(seedPreview)}</div>
       <div class="card-status"><span class="status-badge ${statusClass(assetStatus)}">${statusIcon(assetStatus)} ${assetStatus}</span></div>
+      ${taskMetaHtml(info)}
     </div>`;
   }
   html += `</div>`;
@@ -801,7 +982,145 @@ function getPhaseItems() {
   }
 }
 
-async function batchGeneratePrompts() {
+function markAssetSubmitted(item, taskId) {
+  const p = state.pipeline;
+  if (!p || !item) return;
+  const category = item._type === 'character' ? 'characters' : (item._type === 'prop' ? 'props' : 'scenes');
+  const asset = p.assets?.[category]?.[item.name];
+  if (!asset) return;
+  asset.status = 'submitted';
+  if (taskId) asset.task_id = taskId;
+  asset.submitted_at = new Date().toISOString();
+  asset.last_checked_at = null;
+  asset.status_message = '已提交，等待生成结果';
+  delete asset.error;
+}
+
+function setButtonBusy(btn, label) {
+  if (!btn) return () => {};
+  const oldHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.dataset.busy = '1';
+  btn.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${label}`;
+  return () => {
+    btn.disabled = false;
+    delete btn.dataset.busy;
+    btn.innerHTML = oldHtml;
+    lucide.createIcons();
+  };
+}
+
+async function runLockedAction(key, btn, busyLabel, action) {
+  if (state.actionLocks.has(key)) {
+    showToast('这个操作已经在处理中', 'info');
+    return;
+  }
+  state.actionLocks.add(key);
+  const restoreButton = setButtonBusy(btn, busyLabel);
+  try {
+    return await action();
+  } finally {
+    state.actionLocks.delete(key);
+    if (btn && document.body.contains(btn)) restoreButton();
+  }
+}
+
+function snapshotFields(obj, fields) {
+  const snapshot = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(obj, field)) snapshot[field] = obj[field];
+    else snapshot[field] = undefined;
+  }
+  return () => {
+    for (const field of fields) {
+      if (snapshot[field] === undefined) delete obj[field];
+      else obj[field] = snapshot[field];
+    }
+  };
+}
+
+function markAssetSubmitting(name, category) {
+  const asset = state.pipeline?.assets?.[category]?.[name];
+  if (!asset) return () => {};
+  const restore = snapshotFields(asset, ['status', 'task_id', 'submitted_at', 'last_checked_at', 'status_message', 'error']);
+  asset.status = 'submitted';
+  asset.submitted_at = new Date().toISOString();
+  asset.last_checked_at = null;
+  asset.status_message = '正在提交到生成服务...';
+  delete asset.error;
+  renderAll();
+  return restore;
+}
+
+function markBoardSubmitting(scene, board) {
+  const restore = snapshotFields(board, ['status', 'board_task_id', 'submitted_at', 'last_checked_at', 'status_message', 'error']);
+  board.status = 'submitted';
+  board.submitted_at = new Date().toISOString();
+  board.last_checked_at = null;
+  board.status_message = '正在提交到生成服务...';
+  delete board.error;
+  _syncSceneFromBoardForUi(scene);
+  renderAll();
+  return restore;
+}
+
+function markVideoPartSubmitting(partInfo) {
+  if (!partInfo) return () => {};
+  const restore = snapshotFields(partInfo, ['video_status', 'video_task_id', 'submitted_at', 'last_checked_at', 'status_message', 'error']);
+  partInfo.video_status = 'submitted';
+  partInfo.submitted_at = new Date().toISOString();
+  partInfo.last_checked_at = null;
+  partInfo.status_message = '正在提交到生成服务...';
+  delete partInfo.error;
+  renderAll();
+  return restore;
+}
+
+function _syncSceneFromBoardForUi(scene) {
+  const first = getSceneBoards(scene)[0];
+  if (!first) return;
+  scene.draft_prompt = first.draft_prompt || '';
+  scene.status = first.status || 'needed';
+  scene.board_task_id = first.board_task_id;
+  scene.video_parts = first.video_parts || [];
+}
+
+async function runLimited(items, limit, worker) {
+  let next = 0;
+  async function runOne() {
+    while (next < items.length) {
+      const index = next++;
+      await worker(items[index], index);
+    }
+  }
+  const runners = Array.from({length: Math.min(limit, items.length)}, runOne);
+  await Promise.all(runners);
+}
+
+async function submitBatchItems(items) {
+  const resp = await fetch('/api/tasks/batch-submit', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({project_path: state.projectPath, items})
+  });
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(e.detail || '批量提交失败');
+  }
+  return await resp.json();
+}
+
+function summarizeBatchResults(results) {
+  const ok = results.filter(r => r.ok).length;
+  const fail = results.length - ok;
+  for (const r of results) {
+    if (!r.ok) showToast(`${r.name || '任务'}: ${r.error || '提交失败'}`, 'error');
+  }
+  return {ok, fail};
+}
+
+async function batchGeneratePrompts(btn = null) {
+  return runLockedAction('batch-generate-assets', btn, '生成中...', async () => {
   if (state.batchRunning) return;
   const items = getPhaseItems().filter(i => !i.draft_prompt && i.status === 'needed');
   if (items.length === 0) return;
@@ -820,60 +1139,73 @@ async function batchGeneratePrompts() {
     } catch(e) { fail++; showToast(`${item.name}: 网络错误`, 'error'); }
   }
   await refreshStatus();
-  progress.textContent = `完成 ${ok + fail}/${items.length}`;
+  progress.textContent = `提示词草稿已生成 ${ok}/${items.length}${fail > 0 ? ` · 失败 ${fail}` : ''}`;
   state.batchRunning = false;
   updateToolbarButtons();
   showToast(`提示词生成完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
-async function batchSubmitAll() {
+async function batchSubmitAll(btn = null) {
+  return runLockedAction('batch-submit-assets', btn, '提交中...', async () => {
   if (state.batchRunning) return;
   const items = getPhaseItems().filter(i => i.draft_prompt && (i.status === 'needed' || i.status === 'drafted'));
   if (items.length === 0) return;
   state.batchRunning = true;
+  updateToolbarButtons();
   const progress = document.getElementById('batch-progress');
   let ok = 0, fail = 0;
-  for (const item of items) {
-    progress.textContent = `提交 ${ok + fail + 1}/${items.length}: ${item.name}`;
-    try {
-      const resp = await fetch('/api/tasks/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: item._type, project_path: state.projectPath, name: item.name, prompt: item.draft_prompt, image_paths: []})
-      });
-      if (resp.ok) { ok++; } else { fail++; const e = await resp.json().catch(() => ({})); showToast(`${item.name}: ${e.detail || '提交失败'}`, 'error'); }
-    } catch(e) { fail++; showToast(`${item.name}: 网络错误`, 'error'); }
-    await refreshStatus();
+  progress.textContent = `批量提交中 ${items.length} 个任务（后端最多3个并发）`;
+  try {
+    const payloadItems = items.map(item => ({
+      type: item._type,
+      name: item.name,
+      prompt: item.draft_prompt,
+      image_paths: [],
+    }));
+    const data = await submitBatchItems(payloadItems);
+    ({ok, fail} = summarizeBatchResults(data.results || []));
+  } catch(e) {
+    fail = items.length;
+    showToast(e.message || '批量提交失败', 'error');
   }
-  progress.textContent = `完成 ${ok + fail}/${items.length}`;
+  await refreshStatus();
+  progress.textContent = `提交请求结束：成功 ${ok}/${items.length}${fail > 0 ? ` · 失败 ${fail}` : ''} · 等待生成结果`;
   state.batchRunning = false;
   updateToolbarButtons();
   showToast(`提交完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
-async function batchRetryFailed() {
+async function batchRetryFailed(btn = null) {
+  return runLockedAction('batch-retry-assets', btn, '重试中...', async () => {
   if (state.batchRunning) return;
   const items = getPhaseItems().filter(i => i.status === 'failed');
   if (items.length === 0) return;
   state.batchRunning = true;
   const progress = document.getElementById('batch-progress');
   let ok = 0, fail = 0, skip = 0;
+  const payloadItems = [];
   for (const item of items) {
     const prompt = item.draft_prompt || item.seed || '';
     if (!prompt) { skip++; continue; }
-    progress.textContent = `重试 ${ok + fail + 1}/${items.length}: ${item.name}`;
-    try {
-      const resp = await fetch('/api/tasks/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: item._type, project_path: state.projectPath, name: item.name, prompt, image_paths: []})
-      });
-      if (resp.ok) { ok++; } else { fail++; }
-    } catch(e) { fail++; }
-    await refreshStatus();
+    payloadItems.push({type: item._type, name: item.name, prompt, image_paths: []});
   }
-  progress.textContent = `完成 ${ok + fail + skip}/${items.length}`;
+  if (payloadItems.length) {
+    progress.textContent = `批量重试提交中 ${payloadItems.length} 个任务（后端最多3个并发）`;
+    try {
+      const data = await submitBatchItems(payloadItems);
+      ({ok, fail} = summarizeBatchResults(data.results || []));
+    } catch(e) {
+      fail = payloadItems.length;
+      showToast(e.message || '批量重试失败', 'error');
+    }
+  }
+  progress.textContent = `重试请求结束：成功 ${ok}/${items.length}${fail > 0 ? ` · 失败 ${fail}` : ''}${skip > 0 ? ` · 跳过 ${skip}` : ''} · 等待生成结果`;
   state.batchRunning = false;
   updateToolbarButtons();
   showToast(`重试完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}${skip > 0 ? `，${skip} 跳过` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
 function statusClass(s) {
@@ -887,7 +1219,11 @@ function statusIcon(s) {
     completed: '<i data-lucide="check" class="lucide-sm"></i>',
     submitted: '<i data-lucide="loader" class="lucide-sm" style="animation:spin 0.8s linear infinite"></i>',
     failed: '<i data-lucide="x" class="lucide-sm"></i>',
+    unplanned: '<i data-lucide="circle" class="lucide-sm"></i>',
+    planned: '<i data-lucide="list-checks" class="lucide-sm"></i>',
+    locked: '<i data-lucide="lock" class="lucide-sm"></i>',
     needed: '<i data-lucide="circle" class="lucide-sm"></i>',
+    drafted: '<i data-lucide="minus" class="lucide-sm"></i>',
   };
   return icons[s] || '<i data-lucide="minus" class="lucide-sm"></i>';
 }
@@ -919,7 +1255,7 @@ function renderAssetDetail(container, name, category, info) {
     const imgUrl = `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${fileDir}/${encodeURIComponent(name)}/${encodeURIComponent(name)}.png`;
     const imgWrap = document.createElement('div');
     imgWrap.style = 'position:relative;display:inline-block;';
-    imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none'">
+    imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none';this.nextElementSibling.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','<div class=error-banner>本地图片文件缺失，后台会尝试重新拉取生成结果。</div>')">
       <button onclick="openLightbox('${imgUrl}')" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;color:#fff;font-size:13px;">&#x26F6; 放大</button>`;
     container.appendChild(imgWrap);
   }
@@ -929,8 +1265,8 @@ function renderAssetDetail(container, name, category, info) {
     <textarea class="prompt-editor" id="asset-prompt">${info.draft_prompt || info.seed || ''}</textarea>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="generateAssetPrompt('${name.replace(/'/g,"\\'")}','${category}',this)">生成提示词</button>
-      <button class="btn btn-primary" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}')">提交生成</button>
-      ${status === 'failed' ? `<button class="btn btn-danger" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}')">重试</button>` : ''}
+      <button class="btn btn-primary" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}',this)">提交生成</button>
+      ${status === 'failed' ? `<button class="btn btn-danger" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}',this)">重试</button>` : ''}
     </div>`;
   container.appendChild(section);
 }
@@ -954,26 +1290,58 @@ function renderStoryboardDetail(container, key) {
     return;
   }
 
-  const boardStatus = scene.status || 'needed';
-  if (boardStatus === 'completed') {
-    const imgUrl = `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=storyboards/${key}/${key}.png`;
-    const imgWrap = document.createElement('div');
-    imgWrap.style = 'position:relative;display:inline-block;';
-    imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none'">
-      <button onclick="openLightbox('${imgUrl}')" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;color:#fff;font-size:13px;">&#x26F6; 放大</button>`;
-    container.appendChild(imgWrap);
+  const blockedAttr = dep.storyboardBlocked ? ' disabled' : '';
+  const boards = getSceneBoards(scene);
+  const analysis = scene.scene_analysis || {};
+  const analysisText = Object.keys(analysis).length ? JSON.stringify(analysis, null, 2) : '尚未生成';
+  const planningSection = document.createElement('div');
+  planningSection.className = 'stage-section';
+  planningSection.innerHTML = `<h3>故事板规划</h3>
+    <div class="card-seed" style="white-space:pre-wrap;margin-bottom:10px">${analysisText}</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="analyzeScene('${key}', this)"${blockedAttr}>生成导演分析</button>
+      <button class="btn btn-secondary" onclick="planSceneStoryboards('${key}', this)"${blockedAttr}>生成 ${ver} 规划</button>
+      <button class="btn btn-primary" onclick="lockScenePlan('${key}', this)"${boards.length ? '' : ' disabled'}>锁定规划</button>
+    </div>`;
+  container.appendChild(planningSection);
+
+  if (!boards.length) {
+    container.innerHTML += `<div class="empty-state">当前场景尚未规划故事板。</div>`;
+    return;
   }
 
-  const section = document.createElement('div');
-  section.className = 'stage-section';
-  const blockedAttr = dep.storyboardBlocked ? ' disabled' : '';
-  section.innerHTML = `<h3>故事板提示词草稿 (${ver})</h3>
-    <textarea class="prompt-editor" id="board-prompt">${scene.draft_prompt || ''}</textarea>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="generateBoardPrompt('${key}')"${blockedAttr}>生成提示词</button>
-      <button class="btn btn-primary" onclick="submitBoard('${key}')"${blockedAttr}>提交故事板</button>
-    </div>`;
-  container.appendChild(section);
+  for (const board of boards) {
+    const boardId = board.board_id || '';
+    const domId = boardDomId(board);
+    const boardStatus = board.status || 'needed';
+    if (boardStatus === 'completed') {
+      const imgPath = boardImagePath(ver, key, board);
+      const imgUrl = `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${encodeURIComponent(imgPath)}`;
+      const imgWrap = document.createElement('div');
+      imgWrap.style = 'position:relative;display:inline-block;margin-bottom:12px;';
+      imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none'">
+        <button onclick="openLightbox('${imgUrl}')" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;color:#fff;font-size:13px;">&#x26F6; 放大</button>`;
+      container.appendChild(imgWrap);
+    }
+
+    const section = document.createElement('div');
+    section.className = 'stage-section';
+    const pageText = board.total_pages ? `第${board.page || 1}/共${board.total_pages}张` : `第${board.page || 1}张`;
+    const meta = `${pageText} · ${board.layout || ver} · ${board.shot_count || '-'}镜头${board.estimated_duration ? ` · ${board.estimated_duration}s` : ''}`;
+    const refs = boardAssetRefs(scene, board);
+    const refsText = `角色：${(refs.characters || []).join('、') || '-'} · 场景：${refs.scene || '-'} · 道具：${(refs.props || []).join('、') || '-'}`;
+    const canGenerate = boardStatus === 'locked' && !dep.storyboardBlocked;
+    const canSubmit = boardStatus === 'drafted' && !dep.storyboardBlocked;
+    section.innerHTML = `<h3>故事板提示词草稿 (${ver} · ${meta} · ${boardStatus})</h3>
+      <div class="meta-line" style="margin-bottom:8px">${refsText}</div>
+      <div class="card-seed" style="white-space:pre-wrap;margin-bottom:8px">${board.prompt_seed || ''}</div>
+      <textarea class="prompt-editor" id="board-prompt-${domId}">${board.draft_prompt || ''}</textarea>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="generateBoardPrompt('${key}', '${boardId}', this)"${canGenerate ? '' : ' disabled'}>生成最终提示词</button>
+        <button class="btn btn-primary" onclick="submitBoard('${key}', '${boardId}', this)"${canSubmit ? '' : ' disabled'}>提交故事板</button>
+      </div>`;
+    container.appendChild(section);
+  }
 }
 
 function renderVideoDetail(container, key) {
@@ -984,43 +1352,55 @@ function renderVideoDetail(container, key) {
   container.innerHTML = `<span class="back-link" onclick="state.selectedScene=null;renderMainArea()">&larr; 返回总览</span>
     <h2>${anyScene.script_title || key} — 视频 <span class="ver-badge">${ver}</span></h2>`;
 
-  if (!scene || scene.status !== 'completed') {
-    container.innerHTML += `<div class="block-banner">故事板尚未完成，无法生成视频。请先完成该场景的故事板。</div>`;
+  if (!scene) {
+    container.innerHTML += `<div class="block-banner">当前版本无此场景。</div>`;
     return;
   }
 
-  const parts = scene.video_parts || [];
-  if (parts.length === 0) {
-    const btnDiv = document.createElement('div');
-    btnDiv.className = 'btn-row';
-    btnDiv.innerHTML = `<button class="btn btn-secondary" onclick="generateVideoPrompts('${key}')">生成视频提示词（AI拆分）</button>`;
-    container.appendChild(btnDiv);
-    return;
-  }
-  for (const part of parts) {
-    const vStatus = part.video_status || 'needed';
-    const videoUrl = part.local_path
-      ? `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${encodeURIComponent(part.local_path)}`
-      : part.video_url || '';
-    const card = document.createElement('div');
-    card.className = 'video-part-card';
-    card.innerHTML = `
-      <div class="part-header">Part ${part.part} [${statusIcon(vStatus)}]${part.duration ? ` ${part.duration}s` : ''}</div>
-      ${videoUrl ? `<video src="${videoUrl}" controls style="width:100%;max-height:300px;border-radius:8px;margin-bottom:8px;"></video>` : ''}
-      <textarea class="prompt-editor" id="video-prompt-${part.part}" style="min-height:80px">${part.draft_prompt || part.prompt || ''}</textarea>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="submitVideoPart('${key}', ${part.part})">提交视频</button>
-        ${videoUrl ? `<a href="${videoUrl}" target="_blank" class="btn btn-secondary">下载</a>` : ''}
-      </div>`;
-    container.appendChild(card);
+  for (const board of getSceneBoards(scene)) {
+    const boardId = board.board_id || '';
+    const domId = boardDomId(board);
+    const boardTitle = board.total_pages ? `第${board.page || 1}/共${board.total_pages}张` : `第${board.page || 1}张`;
+    const section = document.createElement('div');
+    section.className = 'stage-section';
+    section.innerHTML = `<h3>${boardTitle} · ${board.layout || ver}</h3>`;
+    if (board.status !== 'completed') {
+      section.innerHTML += `<div class="block-banner">这张故事板尚未完成，无法生成视频。</div>`;
+      container.appendChild(section);
+      continue;
+    }
+    const parts = board.video_parts || [];
+    if (parts.length === 0) {
+      section.innerHTML += `<div class="btn-row"><button class="btn btn-secondary" onclick="generateVideoPrompts('${key}', '${boardId}', this)">生成视频提示词（AI拆分）</button></div>`;
+      container.appendChild(section);
+      continue;
+    }
+    for (const part of parts) {
+      const vStatus = part.video_status || 'needed';
+      const videoUrl = part.local_path
+        ? `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${encodeURIComponent(part.local_path)}`
+        : part.video_url || '';
+      section.innerHTML += `
+        <div class="video-part-card">
+          <div class="part-header">Part ${part.part} [${statusIcon(vStatus)} ${vStatus}]${part.duration ? ` ${part.duration}s` : ''}</div>
+          ${taskMetaHtml(part, 'video_status', 'video_task_id')}
+          ${videoUrl ? `<video src="${videoUrl}" controls style="width:100%;max-height:300px;border-radius:8px;margin-bottom:8px;"></video>` : ''}
+          <textarea class="prompt-editor" id="video-prompt-${domId}-${part.part}" style="min-height:80px">${part.draft_prompt || part.prompt || ''}</textarea>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="submitVideoPart('${key}', '${boardId}', ${part.part}, this)">提交视频</button>
+            ${videoUrl ? `<a href="${videoUrl}" target="_blank" class="btn btn-secondary">下载</a>` : ''}
+          </div>
+        </div>`;
+    }
+    container.appendChild(section);
   }
 }
 
 // ── 单个操作 ──
 async function generateAssetPrompt(name, category, btn) {
+  return runLockedAction(`generate-asset-${category}-${name}`, btn, '生成中...', async () => {
   const type = category === 'characters' ? 'character' : (category === 'props' ? 'prop' : 'scene');
   const seed = state.pipeline?.assets?.[category]?.[name]?.seed || '';
-  if (btn) { btn.disabled = true; btn.textContent = '生成中...'; }
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1031,183 +1411,349 @@ async function generateAssetPrompt(name, category, btn) {
     const ta = document.getElementById('asset-prompt');
     if (ta) ta.value = data.prompt;
   } catch(e) { alert('生成失败：' + e.message); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = '生成提示词'; } }
+  });
 }
 
-async function submitAsset(name, category) {
+async function submitAsset(name, category, btn = null) {
+  return runLockedAction(`submit-asset-${category}-${name}`, btn, '提交中...', async () => {
   const prompt = document.getElementById('asset-prompt').value;
   if (!prompt) { alert('请先填写或生成提示词'); return; }
   const type = category === 'characters' ? 'character' : (category === 'props' ? 'prop' : 'scene');
+  const rollback = markAssetSubmitting(name, category);
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type, project_path: state.projectPath, name, prompt, image_paths: []})
     });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
+    if (!resp.ok) {
+      rollback();
+      renderAll();
+      const e = await resp.json().catch(()=>({}));
+      alert('提交失败：' + (e.detail || resp.status));
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
+    const asset = state.pipeline?.assets?.[category]?.[name];
+    if (asset && data.task_id) {
+      asset.task_id = data.task_id;
+      asset.status_message = '已提交，等待生成结果';
+    }
+    renderAll();
     await refreshStatus();
-  } catch(e) { alert('提交失败：' + e.message); }
+    if (hasSubmittedTasks()) startPolling();
+  } catch(e) {
+    rollback();
+    renderAll();
+    alert('提交失败：' + e.message);
+  }
+  });
 }
 
-async function generateBoardPrompt(sceneKey) {
+async function selectStoryboardRoute(version, btn = null) {
+  return runLockedAction(`select-route-${version}`, btn, '选择中...', async () => {
+    const resp = await fetch('/api/prompts/select-storyboard-route', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, board_version: version})
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('选择失败：' + (e.detail || resp.status)); return; }
+    state.activeBoardVersion = version;
+    state.selectedScene = null;
+    await refreshStatus();
+    showToast(`已选择 ${version} 故事板路线`, 'success');
+  });
+}
+
+async function analyzeScene(sceneKey, btn = null) {
+  return runLockedAction(`analyze-scene-${sceneKey}`, btn, '分析中...', async () => {
+    const resp = await fetch('/api/prompts/analyze-scene', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, scene_key: sceneKey})
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('分析失败：' + (e.detail || resp.status)); return; }
+    await refreshStatus();
+    showToast('导演分析已生成', 'success');
+  });
+}
+
+async function planSceneStoryboards(sceneKey, btn = null) {
+  return runLockedAction(`plan-scene-${state.activeBoardVersion}-${sceneKey}`, btn, '规划中...', async () => {
+    const ver = state.activeBoardVersion;
+    const resp = await fetch('/api/prompts/plan-storyboards', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, board_version: ver, scene_key: sceneKey})
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('规划失败：' + (e.detail || resp.status)); return; }
+    await refreshStatus();
+    showToast('故事板规划已生成', 'success');
+  });
+}
+
+async function lockScenePlan(sceneKey, btn = null) {
+  return runLockedAction(`lock-scene-${state.activeBoardVersion}-${sceneKey}`, btn, '锁定中...', async () => {
+    const ver = state.activeBoardVersion;
+    const resp = await fetch('/api/prompts/lock-storyboard-plan', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, board_version: ver, scene_key: sceneKey})
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('锁定失败：' + (e.detail || resp.status)); return; }
+    await refreshStatus();
+    showToast('规划已锁定', 'success');
+  });
+}
+
+async function generateBoardPrompt(sceneKey, boardId = '', btn = null) {
+  return runLockedAction(`generate-board-${state.activeBoardVersion}-${sceneKey}-${boardId}`, btn, '生成中...', async () => {
   const ver = state.activeBoardVersion;
   const scene = getActiveScene(sceneKey);
   if (!scene) return;
+  const board = getBoardById(scene, boardId);
+  if (!board) return;
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         type: 'storyboard', project_path: state.projectPath, scene_key: sceneKey,
-        board_version: ver,
-        characters: scene.characters_in_scene || [], scene_location: scene.scene_location || '',
-        script_segment: scene.script_segment || '',
+        board_version: ver, board_id: boardId || undefined,
+        script_segment: board.covered_text || scene.script_segment || '',
       })
     });
     if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('生成失败：' + (e.detail || resp.status)); return; }
     const data = await resp.json();
-    const ta = document.getElementById('board-prompt');
+    const ta = document.getElementById(`board-prompt-${boardDomId(board)}`);
     if (ta) ta.value = data.prompt;
   } catch(e) { alert('生成失败：' + e.message); }
+  });
 }
 
-async function submitBoard(sceneKey) {
+async function submitBoard(sceneKey, boardId = '', btn = null) {
+  return runLockedAction(`submit-board-${state.activeBoardVersion}-${sceneKey}-${boardId}`, btn, '提交中...', async () => {
   const dep = getDependencyInfo();
   if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
-  const prompt = document.getElementById('board-prompt').value;
-  if (!prompt) { alert('请先填写或生成提示词'); return; }
   const ver = state.activeBoardVersion;
   const scene = getActiveScene(sceneKey);
   if (!scene) return;
-  const imagePaths = [];
-  for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-  if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
+  const board = getBoardById(scene, boardId);
+  if (!board) return;
+  const prompt = document.getElementById(`board-prompt-${boardDomId(board)}`).value;
+  if (!prompt) { alert('请先填写或生成提示词'); return; }
+  const rollback = markBoardSubmitting(scene, board);
+  const imagePaths = assetRefImagePaths(scene, board);
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'storyboard', project_path: state.projectPath,
-        scene_key: sceneKey, prompt, image_paths: imagePaths, board_version: ver,
+        scene_key: sceneKey, board_id: boardId || undefined, prompt, image_paths: imagePaths, board_version: ver,
         quality: state.versionQuality, resolution: state.versionResolution})
     });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
+    if (!resp.ok) {
+      rollback();
+      _syncSceneFromBoardForUi(scene);
+      renderAll();
+      const e = await resp.json().catch(()=>({}));
+      alert('提交失败：' + (e.detail || resp.status));
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (data.task_id) {
+      board.board_task_id = data.task_id;
+      board.status_message = '已提交，等待生成结果';
+      _syncSceneFromBoardForUi(scene);
+      renderAll();
+    }
     await refreshStatus();
-  } catch(e) { alert('提交失败：' + e.message); }
+    if (hasSubmittedTasks()) startPolling();
+  } catch(e) {
+    rollback();
+    _syncSceneFromBoardForUi(scene);
+    renderAll();
+    alert('提交失败：' + e.message);
+  }
+  });
 }
 
-async function generateVideoPrompts(sceneKey) {
+async function generateVideoPrompts(sceneKey, boardId = '', btn = null) {
+  return runLockedAction(`generate-video-prompts-${state.activeBoardVersion}-${sceneKey}-${boardId}`, btn, '生成中...', async () => {
   const ver = state.activeBoardVersion;
   const scene = getActiveScene(sceneKey);
   if (!scene) return;
+  const board = getBoardById(scene, boardId);
+  if (!board) return;
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'video', project_path: state.projectPath,
-        scene_key: sceneKey, board_version: ver, script_segment: scene.script_segment || ''})
+        scene_key: sceneKey, board_id: boardId || undefined, board_version: ver,
+        script_segment: board.covered_text || scene.script_segment || ''})
     });
     if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('生成失败：' + (e.detail || resp.status)); return; }
     await refreshStatus();
   } catch(e) { alert('生成失败：' + e.message); }
+  });
 }
 
-async function submitVideoPart(sceneKey, partNum) {
-  const prompt = document.getElementById(`video-prompt-${partNum}`)?.value || '';
-  if (!prompt) { alert('请先填写视频提示词'); return; }
+async function submitVideoPart(sceneKey, boardId, partNum, btn = null) {
+  return runLockedAction(`submit-video-${state.activeBoardVersion}-${sceneKey}-${boardId}-${partNum}`, btn, '提交中...', async () => {
   const ver = state.activeBoardVersion;
   const scene = getActiveScene(sceneKey);
   if (!scene) return;
-  const partInfo = (scene.video_parts || []).find(p => p.part === partNum);
+  const board = getBoardById(scene, boardId);
+  if (!board) return;
+  const prompt = document.getElementById(`video-prompt-${boardDomId(board)}-${partNum}`)?.value || '';
+  if (!prompt) { alert('请先填写视频提示词'); return; }
+  const partInfo = (board.video_parts || []).find(p => p.part === partNum);
   const duration = partInfo?.duration || 10;
-  const imagePaths = [];
-  for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-  if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
-  imagePaths.push(`storyboards/${sceneKey}/${sceneKey}.png`);
+  const imagePaths = assetRefImagePaths(scene, board);
+  imagePaths.push(boardImagePath(ver, sceneKey, board));
+  const rollback = markVideoPartSubmitting(partInfo);
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'video', project_path: state.projectPath,
-        scene_key: sceneKey, part: partNum, prompt, image_paths: imagePaths,
+        scene_key: sceneKey, board_id: boardId || undefined, part: partNum, prompt, image_paths: imagePaths,
         duration, board_version: ver})
     });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
+    if (!resp.ok) {
+      rollback();
+      renderAll();
+      const e = await resp.json().catch(()=>({}));
+      alert('提交失败：' + (e.detail || resp.status));
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (data.task_id) {
+      partInfo.video_task_id = data.task_id;
+      partInfo.status_message = '已提交，等待生成结果';
+    }
+    renderAll();
     await refreshStatus();
-  } catch(e) { alert('提交失败：' + e.message); }
+    if (hasSubmittedTasks()) startPolling();
+  } catch(e) {
+    rollback();
+    renderAll();
+    alert('提交失败：' + e.message);
+  }
+  });
 }
 
 // ── 批量版本操作 ──
-async function batchGenBoardPrompts() {
+async function batchGenBoardPrompts(btn = null) {
+  return runLockedAction(`batch-generate-board-prompts-${state.activeBoardVersion}`, btn, '生成中...', async () => {
   if (state.batchRunning) return;
   const dep = getDependencyInfo();
   if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
   const ver = state.activeBoardVersion;
   const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
-  const items = Object.entries(scenes).filter(([, s]) => s && typeof s === 'object' && !s.draft_prompt && s.status === 'needed');
+  const items = [];
+  for (const [key, scene] of Object.entries(scenes)) {
+    if (!scene || typeof scene !== 'object') continue;
+    for (const board of getSceneBoards(scene)) {
+      if (!board.draft_prompt && (board.status || 'unplanned') === 'locked') {
+        items.push({key, scene, board});
+      }
+    }
+  }
   if (items.length === 0) { showToast('没有需要生成提示词的场景', 'info'); return; }
   state.batchRunning = true;
   renderVersionPanel();
   let ok = 0, fail = 0;
-  for (const [key, scene] of items) {
-    try {
-      const resp = await fetch('/api/prompts/generate', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          type: 'storyboard', project_path: state.projectPath, scene_key: key, board_version: ver,
-          characters: scene.characters_in_scene || [], scene_location: scene.scene_location || '',
-          script_segment: scene.script_segment || '',
-        })
-      });
-      if (resp.ok) { ok++; } else { fail++; }
-    } catch(e) { fail++; }
+  try {
+    const payloadItems = items.map(item => ({
+      type: 'storyboard',
+      scene_key: item.key,
+      board_version: ver,
+      board_id: item.board.board_id || undefined,
+      script_segment: item.board.covered_text || item.scene.script_segment || '',
+    }));
+    const resp = await fetch('/api/prompts/batch-generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, items: payloadItems})
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.detail || '批量生成失败');
+    }
+    const data = await resp.json();
+    const results = data.results || [];
+    ok = results.filter(r => r.ok).length;
+    fail = results.length - ok;
+    for (const r of results) {
+      if (!r.ok) showToast(`${r.name || '故事板'}: ${r.error || '生成失败'}`, 'error');
+    }
+  } catch(e) {
+    fail = items.length;
+    showToast(e.message || '批量生成失败', 'error');
   }
   await refreshStatus();
   state.batchRunning = false;
   renderVersionPanel();
   showToast(`提示词生成完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
-async function batchSubmitBoards() {
+async function batchSubmitBoards(btn = null) {
+  return runLockedAction(`batch-submit-boards-${state.activeBoardVersion}`, btn, '提交中...', async () => {
   if (state.batchRunning) return;
   const dep = getDependencyInfo();
   if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
   const ver = state.activeBoardVersion;
   const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
-  const items = Object.entries(scenes).filter(([, s]) => s && typeof s === 'object' && s.draft_prompt && (s.status === 'needed' || s.status === 'drafted'));
+  const items = [];
+  for (const [key, scene] of Object.entries(scenes)) {
+    if (!scene || typeof scene !== 'object') continue;
+    for (const board of getSceneBoards(scene)) {
+      const status = board.status || 'needed';
+      if (board.draft_prompt && status === 'drafted') {
+        items.push({key, scene, board});
+      }
+    }
+  }
   if (items.length === 0) { showToast('没有可提交的故事板', 'info'); return; }
   state.batchRunning = true;
   renderVersionPanel();
   let ok = 0, fail = 0;
-  for (const [key, scene] of items) {
-    const imagePaths = [];
-    for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-    if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
-    try {
-      const resp = await fetch('/api/tasks/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: 'storyboard', project_path: state.projectPath,
-          scene_key: key, prompt: scene.draft_prompt, image_paths: imagePaths,
-          board_version: ver, quality: state.versionQuality, resolution: state.versionResolution})
-      });
-      if (resp.ok) { ok++; } else { fail++; }
-    } catch(e) { fail++; }
-    await refreshStatus();
+  const payloadItems = items.map(item => {
+    const imagePaths = assetRefImagePaths(item.scene, item.board);
+    return {
+      type: 'storyboard',
+      scene_key: item.key,
+      board_id: item.board.board_id || undefined,
+      prompt: item.board.draft_prompt,
+      image_paths: imagePaths,
+      board_version: ver,
+    };
+  });
+  try {
+    showToast(`正在批量提交 ${items.length} 张板图（后端最多3个并发）`, 'info');
+    const data = await submitBatchItems(payloadItems);
+    ({ok, fail} = summarizeBatchResults(data.results || []));
+  } catch(e) {
+    fail = items.length;
+    showToast(e.message || '板图批量提交失败', 'error');
   }
+  await refreshStatus();
   state.batchRunning = false;
   renderVersionPanel();
   showToast(`板图提交完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
-async function batchSubmitVideos() {
+async function batchSubmitVideos(btn = null) {
+  return runLockedAction(`batch-submit-videos-${state.activeBoardVersion}`, btn, '提交中...', async () => {
   if (state.batchRunning) return;
   const ver = state.activeBoardVersion;
   const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
   const items = [];
   for (const [key, scene] of Object.entries(scenes)) {
     if (!scene || typeof scene !== 'object') continue;
-    if (scene.status !== 'completed') continue;
-    for (const part of (scene.video_parts || [])) {
-      if (part.video_status === 'needed' && (part.draft_prompt || part.prompt)) {
-        const imagePaths = [];
-        for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-        if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
-        imagePaths.push(`storyboards/${key}/${key}.png`);
-        items.push({key, part, prompt: part.draft_prompt || part.prompt, imagePaths});
+    for (const board of getSceneBoards(scene)) {
+      if (board.status !== 'completed') continue;
+      for (const part of (board.video_parts || [])) {
+        if ((part.video_status === 'needed' || part.video_status === 'drafted') && (part.draft_prompt || part.prompt)) {
+          const imagePaths = assetRefImagePaths(scene, board);
+          imagePaths.push(boardImagePath(ver, key, board));
+          items.push({key, board, part, prompt: part.draft_prompt || part.prompt, imagePaths});
+        }
       }
     }
   }
@@ -1215,31 +1761,121 @@ async function batchSubmitVideos() {
   state.batchRunning = true;
   renderVersionPanel();
   let ok = 0, fail = 0;
-  for (const item of items) {
-    try {
-      const resp = await fetch('/api/tasks/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: 'video', project_path: state.projectPath,
-          scene_key: item.key, part: item.part.part, prompt: item.prompt,
-          image_paths: item.imagePaths, duration: item.part.duration || 10, board_version: ver})
-      });
-      if (resp.ok) { ok++; } else { fail++; }
-    } catch(e) { fail++; }
-    await refreshStatus();
+  const payloadItems = items.map(item => ({
+    type: 'video',
+    scene_key: item.key,
+    board_id: item.board.board_id || undefined,
+    part: item.part.part,
+    prompt: item.prompt,
+    image_paths: item.imagePaths,
+    duration: item.part.duration || 10,
+    board_version: ver,
+  }));
+  try {
+    showToast(`正在批量提交 ${items.length} 个视频任务（后端最多3个并发）`, 'info');
+    const data = await submitBatchItems(payloadItems);
+    ({ok, fail} = summarizeBatchResults(data.results || []));
+  } catch(e) {
+    fail = items.length;
+    showToast(e.message || '视频批量提交失败', 'error');
   }
+  await refreshStatus();
   state.batchRunning = false;
   renderVersionPanel();
   showToast(`视频提交完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+  });
 }
 
 async function refreshStatus() {
   if (!state.projectPath) return;
-  const resp = await fetch(`/api/project/status?project_name=${encodeURIComponent(state.projectPath)}`);
+  const resp = await fetch(`/api/project/status?project_path=${encodeURIComponent(state.projectPath)}`);
   if (resp.ok) {
     const newData = await resp.json();
     state.pipeline = newData;
     renderAll();
     if (hasSubmittedTasks()) startPolling();
+  }
+}
+
+async function openDocumentsDialog() {
+  if (!state.projectPath) return;
+  const list = document.getElementById('documents-list');
+  list.innerHTML = '<div class="document-empty">加载中...</div>';
+  document.getElementById('documents-overlay').classList.add('visible');
+  try {
+    const resp = await fetch(`/api/project/documents?project_path=${encodeURIComponent(state.projectPath)}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+      list.innerHTML = `<div class="error-banner">${escapeHtml(data.detail || '读取文档失败')}</div>`;
+      return;
+    }
+    renderDocumentsList(data.documents || []);
+  } catch(e) {
+    list.innerHTML = `<div class="error-banner">读取文档失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closeDocumentsDialog() {
+  document.getElementById('documents-overlay').classList.remove('visible');
+}
+
+function renderDocumentsList(docs) {
+  const list = document.getElementById('documents-list');
+  list.innerHTML = '';
+  if (!docs.length) {
+    list.innerHTML = '<div class="document-empty">当前项目没有找到可打开的文档或资产目录。</div>';
+    return;
+  }
+  for (const doc of docs) {
+    const row = document.createElement('div');
+    row.className = 'document-item';
+    const main = document.createElement('div');
+    main.className = 'document-item-main';
+    const name = document.createElement('div');
+    name.className = 'document-item-name';
+    name.textContent = doc.name || doc.path || '';
+    const path = document.createElement('div');
+    path.className = 'document-item-path';
+    path.title = doc.path || '';
+    path.textContent = doc.path === doc.name ? '项目根目录' : (doc.path || '');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.innerHTML = doc.kind === 'folder'
+      ? '<i data-lucide="folder-open"></i> 打开目录'
+      : '<i data-lucide="external-link"></i> 打开';
+    btn.addEventListener('click', () => openProjectDocument(doc.path, btn));
+    main.appendChild(name);
+    main.appendChild(path);
+    row.appendChild(main);
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+  lucide.createIcons();
+}
+
+async function openProjectDocument(filePath, btn) {
+  if (!state.projectPath || !filePath) return;
+  const oldHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '打开中...';
+  try {
+    const resp = await fetch('/api/project/open-document', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_path: state.projectPath, file_path: filePath})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      showToast(data.detail || '打开失败', 'error');
+      return;
+    }
+    showToast('已打开本地文档', 'success');
+  } catch(e) {
+    showToast('打开失败：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+    lucide.createIcons();
   }
 }
 
@@ -1255,6 +1891,11 @@ async function openSettings() {
     document.getElementById('set-idealab').value = '';
     document.getElementById('set-idealab').placeholder = s._has_idealab ? s.idealab_api_key : '输入 ideaLAB API Key';
     document.getElementById('set-idealab-url').value = s.idealab_base_url || '';
+    document.getElementById('set-llm-provider').value = s.llm_provider || 'idealab';
+    document.getElementById('set-deepseek').value = '';
+    document.getElementById('set-deepseek').placeholder = s._has_deepseek ? s.deepseek_api_key : '输入 DeepSeek API Key';
+    document.getElementById('set-deepseek-url').value = s.deepseek_base_url || 'https://api.deepseek.com';
+    document.getElementById('set-deepseek-model').value = s.deepseek_model || 'deepseek-v4-flash';
   } catch(e) {}
   document.getElementById('settings-overlay').classList.add('visible');
 }
@@ -1265,10 +1906,18 @@ async function saveSettings() {
   const wetoken = document.getElementById('set-wetoken').value.trim();
   const idealab = document.getElementById('set-idealab').value.trim();
   const url = document.getElementById('set-idealab-url').value.trim();
+  const provider = document.getElementById('set-llm-provider').value;
+  const deepseek = document.getElementById('set-deepseek').value.trim();
+  const deepseekUrl = document.getElementById('set-deepseek-url').value.trim();
+  const deepseekModel = document.getElementById('set-deepseek-model').value.trim();
   if (vidu) body.vidu_api_key = vidu;
   if (wetoken) body.wetoken_api_key = wetoken;
   if (idealab) body.idealab_api_key = idealab;
   if (url) body.idealab_base_url = url;
+  body.llm_provider = provider;
+  if (deepseek) body.deepseek_api_key = deepseek;
+  if (deepseekUrl) body.deepseek_base_url = deepseekUrl;
+  if (deepseekModel) body.deepseek_model = deepseekModel;
   try {
     const resp = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
     if (resp.ok) { closeSettings(); alert('设置已保存'); }
@@ -1295,7 +1944,13 @@ async function sendAgentMessage() {
   try {
     const resp = await fetch('/api/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ project_name: state.projectPath, message: msg, history: state.chatHistory.slice(-20), current_scene_key: state.selectedScene })
+      body: JSON.stringify({
+        project_name: state.projectPath,
+        message: msg,
+        history: state.chatHistory.slice(-20),
+        current_scene_key: state.selectedScene,
+        active_board_version: state.activeBoardVersion,
+      })
     });
     const data = await resp.json();
     thinkingEl.remove();
@@ -1497,7 +2152,22 @@ async function _loadRecentProjects() {
     const resp = await fetch('/api/project/list-recent'); const data = await resp.json();
     if (!data.projects || data.projects.length === 0) { section.style.display = 'none'; return; }
     section.style.display = '';
-    list.innerHTML = data.projects.map(p => `<div class="recent-project-item" onclick="loadProject(${JSON.stringify(p.path)});closeImportDialog()"><span class="rp-name">${p.name}</span><span class="rp-path" title="${p.path}">${p.path}</span></div>`).join('');
+    list.innerHTML = '';
+    for (const p of data.projects) {
+      const item = document.createElement('div');
+      item.className = 'recent-project-item';
+      const name = document.createElement('span');
+      name.className = 'rp-name';
+      name.textContent = p.name || '';
+      const path = document.createElement('span');
+      path.className = 'rp-path';
+      path.title = p.path || '';
+      path.textContent = p.path || '';
+      item.appendChild(name);
+      item.appendChild(path);
+      item.addEventListener('click', () => { loadProject(p.path); closeImportDialog(); });
+      list.appendChild(item);
+    }
   } catch(e) { section.style.display = 'none'; }
   lucide.createIcons();
 }
@@ -1520,20 +2190,45 @@ async function doParsePreview() {
   if (!projectName) { errDiv.textContent = '请输入项目名称'; errDiv.style.display = ''; return; }
   const parseBtn = document.getElementById('import-parse-btn'); parseBtn.disabled = true; parseBtn.textContent = '解析中...';
   try {
-    const resp = await fetch('/api/project/parse', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input_dir: inputDir, project_name: projectName}) });
+    const resp = await fetch('/api/project/parse', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input_dir: inputDir, project_name: projectName, dry_run: true}) });
     const data = await resp.json();
     if (!resp.ok) { errDiv.textContent = data.detail || '解析失败'; errDiv.style.display = ''; return; }
     _importParsedData = data; const s = data.stats;
-    // 显示各版本场景数
+    // 显示各版本场景数和实际分镜板页数
     const verInfo = s.storyboard_versions
-      ? Object.entries(s.storyboard_versions).map(([v, n]) => `${v}:${n}场景`).join('  ')
-      : `${s.storyboards} 场景`;
-    previewDiv.innerHTML = `<strong style="color:var(--accent)">解析完成</strong><br>角色：${s.characters} 个  场景：${s.scenes} 个  道具：${s.props} 个<br>故事板：${verInfo}<br><span style="color:var(--text-muted);font-size:11px">pipeline.json 已写入：${data.input_dir}</span>`;
+      && Object.keys(s.storyboard_versions).length > 0
+      ? Object.entries(s.storyboard_versions).map(([v, n]) => {
+          const pages = s.storyboard_pages?.[v];
+          return `${v}:${n}场景${pages !== undefined ? `/${pages}张板` : ''}`;
+        }).join('  ')
+      : `原始场次:${s.source_scenes || 0}场，导入后选择 v1 或 v2 路线`;
+    previewDiv.innerHTML = `<strong style="color:var(--accent)">解析完成</strong><br>角色：${s.characters} 个  场景：${s.scenes} 个  道具：${s.props} 个<br>故事板：${verInfo}<br><span style="color:var(--text-muted);font-size:11px">预览未写入文件，点击“导入”后创建 pipeline.json</span>`;
     previewDiv.style.display = ''; confirmBtn.disabled = false;
   } catch(e) { errDiv.textContent = '请求失败：' + e.message; errDiv.style.display = ''; }
   finally { parseBtn.disabled = false; parseBtn.textContent = '解析预览'; }
 }
-async function doImportConfirm() { if (!_importParsedData) return; _savePathHistory(_importParsedData.input_dir); closeImportDialog(); await loadProject(_importParsedData.input_dir); }
+async function doImportConfirm() {
+  if (!_importParsedData) return;
+  const inputDir = _importParsedData.input_dir;
+  const projectName = _importParsedData.project_name || document.getElementById('import-name').value.trim();
+  const confirmBtn = document.getElementById('import-confirm-btn');
+  confirmBtn.disabled = true; confirmBtn.textContent = '导入中...';
+  try {
+    const resp = await fetch('/api/project/parse', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({input_dir: inputDir, project_name: projectName, dry_run: false})
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showError(data.detail || '导入失败'); return; }
+    _savePathHistory(inputDir);
+    closeImportDialog();
+    await loadProject(inputDir);
+  } catch(e) {
+    showError('导入失败：' + e.message);
+  } finally {
+    confirmBtn.disabled = false; confirmBtn.textContent = '导入';
+  }
+}
 
 function openLightbox(url) {
   let lb = document.getElementById('lightbox');

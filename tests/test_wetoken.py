@@ -2,9 +2,10 @@ import pytest
 from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
+import httpx
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.wetoken import submit_video_task, poll_task, WetokenError
+from api.wetoken import submit_video_task, poll_task, poll_asset_status, WetokenError
 
 
 def test_submit_returns_task_id():
@@ -63,3 +64,13 @@ def test_poll_task_failed():
         result = poll_task("test_key", "wetoken_123")
     assert result["status"] == "failed"
     assert "quota" in result["error"]
+
+
+def test_poll_asset_status_continues_after_read_timeout():
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"Result": {"Status": "Active"}}
+
+    with patch("api.wetoken.httpx.get", side_effect=[httpx.ReadTimeout("slow"), mock_resp]), \
+         patch("api.wetoken.time.sleep"):
+        assert poll_asset_status("test_key", "asset_123", timeout=10) == "Active"

@@ -93,25 +93,32 @@ def upload_asset(api_key: str, public_url: str, name: str) -> str:
     return data["Result"]["Id"]
 
 
-def poll_asset_status(api_key: str, asset_id: str, timeout: int = 60) -> str:
+def poll_asset_status(api_key: str, asset_id: str, timeout: int = 180) -> str:
     """轮询素材状态，返回 'Active' 或抛异常"""
     deadline = time.time() + timeout
+    last_error = ""
     while time.time() < deadline:
-        resp = httpx.get(
-            f"{ASSET_URL}/get",
-            headers=_headers(api_key),
-            params={"id": asset_id},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        result = resp.json()["Result"]
+        try:
+            resp = httpx.get(
+                f"{ASSET_URL}/get",
+                headers=_headers(api_key),
+                params={"id": asset_id},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            result = resp.json()["Result"]
+        except (httpx.TimeoutException, httpx.HTTPError) as e:
+            last_error = str(e)
+            time.sleep(3)
+            continue
         status = result["Status"]
         if status == "Active":
             return "Active"
         if status == "Failed":
             raise WetokenError(f"素材处理失败: {result.get('Error', {}).get('Message', 'unknown')}")
         time.sleep(3)
-    raise WetokenError(f"素材 {asset_id} 超时未就绪")
+    detail = f"，最后错误：{last_error}" if last_error else ""
+    raise WetokenError(f"素材 {asset_id} 超时未就绪{detail}")
 
 
 def _get_ledger_path(project_dir: Path) -> Path:

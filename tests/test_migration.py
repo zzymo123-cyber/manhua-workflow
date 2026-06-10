@@ -101,8 +101,8 @@ def test_migrate_pipeline_old_format():
     sb = result["storyboards"]
     assert list(sb.keys()) == ["v1"]
     assert set(sb["v1"].keys()) == {"s01_01", "s01_02"}
-    assert sb["v1"]["s01_01"]["status"] == "needed"
-    assert sb["v1"]["s01_02"]["status"] == "needed"   # 空 board_versions → needed
+    assert sb["v1"]["s01_01"]["status"] == "drafted"
+    assert sb["v1"]["s01_02"]["status"] == "planned"   # 空 board_versions → planned seed
 
 
 def test_migrate_pipeline_skips_null_top_level_key():
@@ -122,19 +122,70 @@ def test_migrate_pipeline_skips_null_top_level_key():
 
 
 def test_migrate_pipeline_new_format_is_noop():
-    """新格式不重复迁移"""
+    """版本化场景格式会补齐 boards，且迁移幂等"""
     data = {
         "project": "test",
         "storyboards": {
-            "v1": {"s01_01": {"status": "needed", "draft_prompt": "", "video_parts": []}}
+            "v1": {"s01_01": {
+                "episode": 1,
+                "scene_num": 1,
+                "script_title": "第1集·场景1·客厅",
+                "characters_in_scene": [],
+                "scene_location": "客厅",
+                "script_segment": "测试",
+                "status": "needed",
+                "draft_prompt": "已有提示词",
+                "video_parts": [],
+            }}
         },
         "assets": {"characters": {}, "scenes": {}, "props": {}},
     }
     result = migrate_pipeline(data)
-    assert result["storyboards"]["v1"]["s01_01"]["status"] == "needed"
+    assert result["storyboards"]["v1"]["s01_01"]["status"] == "drafted"
+    assert result["storyboards"]["v1"]["s01_01"]["boards"][0]["draft_prompt"] == "已有提示词"
+    assert result["storyboards"]["v1"]["s01_01"]["boards"][0]["shot_count"] == 9
     # 幂等
     result2 = migrate_pipeline(result)
     assert result2 is result
+
+
+def test_migrate_pipeline_plans_v2_boards_for_existing_versioned_scene():
+    """旧的场景级 v2 项目加载时补成 15 秒内多张 board"""
+    data = {
+        "project": "test",
+        "storyboards": {
+            "v2": {"s01_01": {
+                "episode": 1,
+                "scene_num": 1,
+                "script_title": "第1集·场景1·客厅",
+                "characters_in_scene": ["阿明"],
+                "scene_location": "客厅",
+                "script_segment": "\n".join([
+                    "阿明推门进入。",
+                    "**阿明**：第一句对白很长很长。",
+                    "他看向桌面。",
+                    "**阿明**：第二句对白继续推进。",
+                    "手机震动。",
+                    "他伸手去拿。",
+                    "**阿明**：第三句对白制造悬念。",
+                    "门外传来脚步声。",
+                    "他回头。",
+                    "门把手转动。",
+                ]),
+                "status": "drafted",
+                "draft_prompt": "旧v2提示词",
+                "board_task_id": None,
+                "video_parts": [],
+            }}
+        },
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+    }
+    result = migrate_pipeline(data)
+    boards = result["storyboards"]["v2"]["s01_01"]["boards"]
+    assert len(boards) > 1
+    assert boards[0]["draft_prompt"] == "旧v2提示词"
+    assert all(board["layout"] == "director_sheet_15s" for board in boards)
+    assert all(board["estimated_duration"] <= 15 for board in boards)
 
 
 def test_migrate_pipeline_sets_migrated_flag():
@@ -146,6 +197,81 @@ def test_migrate_pipeline_sets_migrated_flag():
     }
     result = migrate_pipeline(data)
     assert result["_migrated"] is True
+
+
+def test_migrate_pipeline_clears_seed_storyboard_draft_prompt():
+    seed_prompt = (
+        "分镜板ID：s01_01_v2_p01\n"
+        "本页剧情：\n"
+        "△ 测试剧情\n"
+        "版本：v2 专业影视分镜板。请生成黑白铅笔线稿/导演分镜稿。"
+    )
+    data = {
+        "project": "test",
+        "_migrated": True,
+        "assets": {"characters": {}, "scenes": {}, "props": {}},
+        "storyboards": {
+            "v2": {
+                "s01_01": {
+                    "boards": [{
+                        "board_id": "s01_01_v2_p01",
+                        "layout": "director_sheet_15s",
+                        "covered_text": "△ 测试剧情",
+                        "draft_prompt": seed_prompt,
+                        "status": "drafted",
+                        "board_task_id": None,
+                        "video_parts": [],
+                    }]
+                }
+            }
+        },
+    }
+
+    result = migrate_pipeline(data)
+    board = result["storyboards"]["v2"]["s01_01"]["boards"][0]
+    assert board["prompt_seed"] == seed_prompt
+    assert board["draft_prompt"] == ""
+    assert board["status"] == "planned"
+
+
+def test_migrate_pipeline_adds_storyboard_asset_refs():
+    data = {
+        "project": "test",
+        "_migrated": True,
+        "assets": {
+            "characters": {"婉瑜": {}, "小乐": {}},
+            "scenes": {"小乐卧室": {}},
+            "props": {"故事书": {}},
+        },
+        "storyboards": {
+            "v2": {
+                "s01_01": {
+                    "characters_in_scene": ["婉瑜", "小乐"],
+                    "scene_location": "小乐卧室",
+                    "script_segment": "婉瑜拿起故事书。",
+                    "boards": [{
+                        "board_id": "s01_01_v2_p01",
+                        "covered_text": "婉瑜拿起故事书。",
+                        "prompt_seed": "睡前故事",
+                        "draft_prompt": "",
+                        "status": "planned",
+                        "video_parts": [],
+                    }],
+                }
+            }
+        },
+    }
+
+    result = migrate_pipeline(data)
+    board = result["storyboards"]["v2"]["s01_01"]["boards"][0]
+    assert board["asset_refs"] == {
+        "characters": ["婉瑜", "小乐"],
+        "scene": "小乐卧室",
+        "props": ["故事书"],
+    }
+    assert board["characters"] == ["婉瑜", "小乐"]
+    assert board["scene_location"] == "小乐卧室"
+    assert board["props"] == ["故事书"]
 
 
 def test_write_pipeline_strips_migrated_flag(tmp_path):

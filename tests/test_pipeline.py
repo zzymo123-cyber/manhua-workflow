@@ -76,6 +76,17 @@ def test_write_and_read_prompt_templates(tmp_project):
 
 def test_get_prompt_template_defaults_returns_all_keys():
     defaults = get_prompt_template_defaults()
-    assert set(defaults.keys()) == {"character", "scene", "prop", "storyboard_v1", "video_v1"}
+    assert set(defaults.keys()) == {
+        "character", "scene", "prop",
+        "storyboard_v1", "storyboard_v2",
+        "video_v1", "video_v2",
+    }
     # 内置默认值是 string
     assert all(isinstance(v, str) and v for v in defaults.values())
+    assert "3x3" in defaults["storyboard_v1"]
+    assert "5-6" in defaults["storyboard_v2"]
+    assert "16:9" in defaults["video_v1"]
+    assert "横屏" in defaults["video_v1"]
+    assert "9:16" in defaults["video_v2"]
+    assert "竖屏" in defaults["video_v2"]
+    assert "不要假设一定是9格" in defaults["video_v2"]

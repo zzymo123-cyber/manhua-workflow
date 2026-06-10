@@ -6,7 +6,7 @@ It is designed for the project owner and collaborators who need a quiet, profess
 
 ## Current Release
 
-v3 separates storyboard versions into independent production lanes. v1, v2, and future v3/v4 storyboard outputs each keep their own prompt draft, generation status, task ID, image path, video prompt parts, and video task state. Video generation now binds to a concrete storyboard output such as `v1_main`, `v2_p1`, or `v2_p2` instead of relying on a scene-level storyboard state.
+v5 keeps storyboard routes in single-lane production, adds scene director analysis, route-specific storyboard planning, locked planning before final prompts, board-level asset references, backend batch submission, and synchronized migration/tests for continuing work across macOS and Windows.
 
 ## Requirements
 
@@ -64,7 +64,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows.ps1
 
 ## Configure API Keys
 
-Open the app, click the settings icon, and save the service keys there. Saved keys can be cleared from the same settings panel. For Wetoken video generation with local reference images, also fill GitHub Token, Owner, and Repo so the app can upload image references before submitting the video task. The app writes a local `settings.json`, which is intentionally ignored by git.
+Open the app, click the settings icon, and save the service keys there. The LLM provider can be set to ideaLAB or DeepSeek; DeepSeek uses the OpenAI-compatible API at `https://api.deepseek.com` by default. Saved keys can be cleared from the same settings panel. For Wetoken video generation with local reference images, also fill GitHub Token, Owner, and Repo so the app can upload image references before submitting the video task. The app writes a local `settings.json`, which is intentionally ignored by git.
 
 For a new environment, copy `settings.example.json` only as a reference. Do not commit real keys.
 
@@ -123,7 +123,7 @@ Run tests:
 Current expected result:
 
 ```text
-166 passed
+57 passed
 ```
 
 ## Local Files

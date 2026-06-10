@@ -1,11 +1,16 @@
 import base64
+import io
 import time
 import httpx
+import asyncio
 from pathlib import Path
+
+from PIL import Image, ImageOps
 
 VIDU_BASE = "https://api.vidu.cn"
 SUBMIT_URL = f"{VIDU_BASE}/ent/v2/reference2image"
 POLL_URL = f"{VIDU_BASE}/ent/v2/tasks/{{task_id}}/creations"
+SUBMIT_TIMEOUT = httpx.Timeout(300.0, connect=30.0, read=300.0, write=300.0, pool=30.0)
 
 RATIO_TO_ASPECT = {
     "1:1": "1:1",
@@ -22,6 +27,17 @@ class ViduError(Exception):
     pass
 
 
+_TRANSIENT_EXCEPTIONS = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadError,
+    httpx.ReadTimeout,
+    httpx.RemoteProtocolError,
+    httpx.WriteError,
+    httpx.WriteTimeout,
+)
+
+
 def _headers(api_key: str) -> dict:
     return {
         "Authorization": f"Token {api_key}",
@@ -30,16 +46,44 @@ def _headers(api_key: str) -> dict:
 
 
 def _img_to_data_uri(path: str) -> str:
-    ext = path.rsplit(".", 1)[-1].lower()
-    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(ext, "image/png")
-    with open(path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
-    return f"data:{mime};base64,{b64}"
+    """Encode local reference images compactly for Vidu request payloads."""
+    with Image.open(path) as img:
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.thumbnail((1280, 1280), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85, optimize=True)
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return f"data:image/jpeg;base64,{b64}"
 
 
 def _request(method: str, url: str, **kwargs):
     with httpx.Client(trust_env=False, timeout=kwargs.pop("timeout", 120)) as client:
         return client.request(method, url, **kwargs)
+
+
+def _request_with_retries(method: str, url: str, attempts: int = 3, **kwargs):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return _request(method, url, **kwargs)
+        except _TRANSIENT_EXCEPTIONS as e:
+            last_error = e
+            if attempt < attempts - 1:
+                time.sleep(0.8 * (attempt + 1))
+    raise ViduError(f"Vidu 连接中断，已重试 {attempts} 次仍失败: {last_error}")
+
+
+async def _async_request_with_retries(client: httpx.AsyncClient, method: str, url: str,
+                                      attempts: int = 3, **kwargs):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return await client.request(method, url, **kwargs)
+        except _TRANSIENT_EXCEPTIONS as e:
+            last_error = e
+            if attempt < attempts - 1:
+                await asyncio.sleep(0.8 * (attempt + 1))
+    raise ViduError(f"Vidu 连接中断，已重试 {attempts} 次仍失败: {last_error}")
 
 
 def submit_image_task(
@@ -64,7 +108,7 @@ def submit_image_task(
             for p in image_paths
         ]
 
-    resp = _request("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
+    resp = _request_with_retries("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=SUBMIT_TIMEOUT)
     if not resp.is_success:
         try:
             err = resp.json()
@@ -196,7 +240,9 @@ async def submit_image_task_async(
             for p in image_paths
         ]
     client = await _get_async_client()
-    resp = await client.post(SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
+    resp = await _async_request_with_retries(
+        client, "POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=SUBMIT_TIMEOUT
+    )
     if not resp.is_success:
         try:
             err = resp.json()

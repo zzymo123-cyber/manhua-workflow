@@ -10,7 +10,7 @@ from api.routes.prompts import router as prompts_router
 from api.routes.tasks import router as tasks_router
 from api.routes.assets import router as assets_router
 from api.routes.chat import router as chat_router
-from api.routes.settings import router as settings_router
+from api.routes.settings import router as settings_router, get_api_key
 from api import poller
 
 logging.basicConfig(level=logging.INFO)
@@ -19,10 +19,21 @@ logger = logging.getLogger(__name__)
 REQUIRED_ENV = ["VIDU_API_KEY", "WETOKEN_API_KEY", "IDEALAB_API_KEY"]
 
 
+def get_port() -> int:
+    raw_port = os.environ.get("MANHUA_PORT") or os.environ.get("PORT") or "8002"
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise RuntimeError("MANHUA_PORT/PORT must be an integer between 1 and 65535.") from exc
+    if port < 1 or port > 65535:
+        raise RuntimeError("MANHUA_PORT/PORT must be an integer between 1 and 65535.")
+    return port
+
+
 def check_env():
-    missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
+    missing = [k for k in REQUIRED_ENV if not get_api_key(k)]
     if missing:
-        logger.warning(f"缺少环境变量: {', '.join(missing)}。对应功能将无法使用。")
+        logger.warning(f"缺少 API Key: {', '.join(missing)}。对应功能将无法使用。")
     return missing
 
 
@@ -30,7 +41,7 @@ def check_env():
 async def lifespan(app: FastAPI):
     missing = check_env()
     if missing:
-        logger.warning(f"启动时缺少环境变量: {missing}")
+        logger.warning(f"启动时缺少 API Key: {missing}")
     await poller.start()
     yield
     await poller.stop()
@@ -74,6 +85,12 @@ async def index():
     return FileResponse("static/index.html")
 
 
+@app.get("/api/health")
+async def health():
+    return {"ok": True}
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=True)
+    reload_enabled = os.environ.get("MANHUA_RELOAD") == "1"
+    uvicorn.run("main:app", host="0.0.0.0", port=get_port(), reload=reload_enabled)

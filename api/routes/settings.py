@@ -13,6 +13,10 @@ DEFAULTS = {
     "wetoken_api_key": "",
     "idealab_api_key": "",
     "idealab_base_url": "https://api.idealab.com/v1",
+    "llm_provider": "idealab",
+    "deepseek_api_key": "",
+    "deepseek_base_url": "https://api.deepseek.com",
+    "deepseek_model": "deepseek-v4-flash",
     "gh_token": "",
     "gh_owner": "",
     "gh_repo": "",
@@ -24,6 +28,10 @@ class SettingsModel(BaseModel):
     wetoken_api_key: Optional[str] = None
     idealab_api_key: Optional[str] = None
     idealab_base_url: Optional[str] = None
+    llm_provider: Optional[str] = None
+    deepseek_api_key: Optional[str] = None
+    deepseek_base_url: Optional[str] = None
+    deepseek_model: Optional[str] = None
     gh_token: Optional[str] = None
     gh_owner: Optional[str] = None
     gh_repo: Optional[str] = None
@@ -50,6 +58,7 @@ def get_api_key(key_name: str) -> str:
         "VIDU_API_KEY": "vidu_api_key",
         "WETOKEN_API_KEY": "wetoken_api_key",
         "IDEALAB_API_KEY": "idealab_api_key",
+        "DEEPSEEK_API_KEY": "deepseek_api_key",
     }
     settings = read_settings()
     val = settings.get(mapping.get(key_name, ""), "")
@@ -67,12 +76,17 @@ async def get_settings():
         "wetoken_api_key": _mask(s["wetoken_api_key"]),
         "idealab_api_key": _mask(s["idealab_api_key"]),
         "idealab_base_url": s["idealab_base_url"],
+        "llm_provider": s.get("llm_provider", "idealab"),
+        "deepseek_api_key": _mask(s.get("deepseek_api_key", "")),
+        "deepseek_base_url": s.get("deepseek_base_url", ""),
+        "deepseek_model": s.get("deepseek_model", ""),
         "gh_token": _mask(s.get("gh_token", "")),
         "gh_owner": s.get("gh_owner", ""),
         "gh_repo": s.get("gh_repo", ""),
         "_has_vidu": bool(s["vidu_api_key"]),
         "_has_wetoken": bool(s["wetoken_api_key"]),
         "_has_idealab": bool(s["idealab_api_key"]),
+        "_has_deepseek": bool(s.get("deepseek_api_key", "")),
         "_has_gh": bool(s.get("gh_token", "")),
     }
 

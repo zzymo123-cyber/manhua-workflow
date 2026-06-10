@@ -18,7 +18,7 @@ async def get_asset(project_name: str, path: str):
     file_path = project_dir / path
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
-    return FileResponse(str(file_path))
+    return FileResponse(str(file_path), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @router.get("/asset-file")
@@ -34,4 +34,4 @@ async def get_asset_by_path(
     full_path = Path(project_path) / file_path
     if not full_path.exists():
         raise HTTPException(status_code=404, detail=f"文件不存在")
-    return FileResponse(str(full_path))
+    return FileResponse(str(full_path), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
