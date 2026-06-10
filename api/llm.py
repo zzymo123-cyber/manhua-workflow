@@ -1,16 +1,11 @@
+import asyncio
 import json
 import os
 import httpx
 import anthropic
 
-from api.errors import describe_exception
-
 DEFAULT_BASE_URL = "https://idealab.alibaba-inc.com/api/anthropic"
 DEFAULT_MODEL = "claude-sonnet-4-6"
-
-
-class LLMError(Exception):
-    pass
 
 
 def _get_client(api_key: str) -> anthropic.Anthropic:
@@ -29,15 +24,12 @@ def _get_client(api_key: str) -> anthropic.Anthropic:
 def generate_prompt(api_key: str, system: str, user_message: str, model: str = DEFAULT_MODEL) -> str:
     """调用 LLM 生成提示词，返回纯文本"""
     client = _get_client(api_key)
-    try:
-        resp = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": user_message}],
-        )
-    except Exception as e:
-        raise LLMError(describe_exception("ideaLAB", e))
+    resp = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        system=system,
+        messages=[{"role": "user", "content": user_message}],
+    )
     return resp.content[0].text
 
 
@@ -52,15 +44,12 @@ def chat_with_agent(
     如果返回非 JSON，将整个内容作为 reply，actions 为空。
     """
     client = _get_client(api_key)
-    try:
-        resp = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
-        )
-    except Exception as e:
-        raise LLMError(describe_exception("ideaLAB", e))
+    resp = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        system=system_prompt,
+        messages=messages,
+    )
     content = resp.content[0].text
     try:
         data = json.loads(content)
@@ -71,3 +60,21 @@ def chat_with_agent(
         }
     except (json.JSONDecodeError, AttributeError):
         return {"reply": content, "actions": [], "_raw": content}
+
+
+# ── 异步版本 ──
+
+
+async def generate_prompt_async(api_key: str, system: str, user_message: str, model: str = DEFAULT_MODEL) -> str:
+    """异步调用 LLM 生成提示词"""
+    return await asyncio.to_thread(generate_prompt, api_key, system, user_message, model)
+
+
+async def chat_with_agent_async(
+    api_key: str,
+    messages: list[dict],
+    system_prompt: str,
+    model: str = DEFAULT_MODEL,
+) -> dict:
+    """异步 Agent 聊天"""
+    return await asyncio.to_thread(chat_with_agent, api_key, messages, system_prompt, model)

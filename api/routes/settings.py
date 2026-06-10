@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -13,7 +12,7 @@ DEFAULTS = {
     "vidu_api_key": "",
     "wetoken_api_key": "",
     "idealab_api_key": "",
-    "idealab_base_url": "https://idealab.alibaba-inc.com/api/anthropic",
+    "idealab_base_url": "https://api.idealab.com/v1",
     "gh_token": "",
     "gh_owner": "",
     "gh_repo": "",
@@ -41,10 +40,7 @@ def read_settings() -> dict:
 
 
 def write_settings(data: dict) -> None:
-    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = SETTINGS_PATH.with_suffix(".tmp")
-    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp_path, SETTINGS_PATH)
+    SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def get_api_key(key_name: str) -> str:
@@ -77,7 +73,7 @@ async def get_settings():
         "_has_vidu": bool(s["vidu_api_key"]),
         "_has_wetoken": bool(s["wetoken_api_key"]),
         "_has_idealab": bool(s["idealab_api_key"]),
-        "_has_gh": all(str(s.get(k, "")).strip() for k in ("gh_token", "gh_owner", "gh_repo")),
+        "_has_gh": bool(s.get("gh_token", "")),
     }
 
 

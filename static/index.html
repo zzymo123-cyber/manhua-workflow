@@ -2,9 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manhua Workflow</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M18 18h28v20H30l-8 8v-8h-4z' fill='white'/%3E%3C/svg%3E">
+<title>精品原型v1</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -13,13 +11,13 @@
   --bg-elevated: #ffffff;
   --bg-muted: #f1f3f5;
   --text-primary: #1a1d23;
-  --text-secondary: #5f6673;
-  --text-muted: #737b89;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
   --text-on-accent: #ffffff;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-light: #eff6ff;
-  --accent-muted: #bfdbfe;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-light: #eef2ff;
+  --accent-muted: #c7d2fe;
   --success: #22c55e;
   --success-light: #f0fdf4;
   --warning: #f59e0b;
@@ -38,32 +36,18 @@
   --space-4: 16px; --space-5: 20px; --space-6: 24px;
   --space-8: 32px;
   --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
-  --shadow-lg: 0 6px 18px rgba(0,0,0,0.12);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
   --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
   --overlay-scrim: rgba(0,0,0,0.3);
-  --shadow-fab: 0 2px 8px rgba(37,99,235,0.18);
+  --shadow-fab: 0 2px 12px rgba(99,102,241,0.4);
   --warning-dark: #e65100;
-  --focus-ring: 0 0 0 3px rgba(37,99,235,0.18);
-  --z-agent: 50;
-  --z-modal-backdrop: 100;
-  --z-modal: 110;
-  --z-toast: 120;
-  --z-lightbox: 130;
 }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
        background: var(--bg-base); color: var(--text-primary); height: 100vh;
        display: flex; flex-direction: column; overflow: hidden;
        font-size: var(--text-base); line-height: 1.5; }
-button, input, textarea, select { font: inherit; }
-input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
-.hidden { display: none !important; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible,
-[tabindex]:focus-visible, .phase-tab:focus-visible, .asset-card:focus-visible, .scene-card:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 svg.lucide { width: 16px; height: 16px; stroke-width: 2; }
 svg.lucide-sm { width: 14px; height: 14px; }
 svg.lucide-lg { width: 20px; height: 20px; }
@@ -71,9 +55,8 @@ svg.lucide-lg { width: 20px; height: 20px; }
 #header { background: var(--bg-surface); border-bottom: 1px solid var(--border);
           padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--space-4);
           flex-shrink: 0; }
-#header h1 { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
-#header .meta { font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer;
-                background: none; border: none; padding: 0; }
+#header h1 { font-size: var(--text-md); font-weight: 600; color: var(--accent); }
+#header .meta { font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; }
 #header .meta:hover { color: var(--text-primary); }
 #header .tasks-badge { background: var(--bg-muted); border-radius: 12px;
                         padding: 3px 10px; font-size: var(--text-sm); color: var(--warning); }
@@ -91,26 +74,47 @@ svg.lucide-lg { width: 20px; height: 20px; }
              cursor: pointer; background: var(--bg-base); color: var(--text-secondary);
              border: 1px solid transparent; transition: all 0.15s;
              display: flex; align-items: center; gap: var(--space-2); }
-.phase-tab.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent-muted); }
+.phase-tab.active { background: var(--accent-light); color: var(--accent); border-left: 2px solid var(--accent); }
 .phase-tab:hover { color: var(--text-primary); background: var(--bg-muted); }
-#sidebar-storyboard-list { flex: 1; overflow-y: auto; padding: var(--space-2); }
-.episode-group { margin-bottom: var(--space-2); }
-.episode-label { font-size: var(--text-xs); color: var(--text-muted); padding: var(--space-1) var(--space-2); }
-.scene-card { background: var(--bg-muted); border-radius: var(--radius-sm); padding: var(--space-2); margin-bottom: 4px;
-              cursor: pointer; border: 1px solid transparent; }
-.scene-card:hover { background: var(--bg-surface); }
-.scene-card.selected { background: var(--accent-light); border-color: var(--accent-muted); }
-.scene-card .scene-name { font-size: var(--text-sm); font-weight: 500; margin-bottom: var(--space-1); }
-.scene-card .scene-summary { font-size: var(--text-xs); color: var(--text-muted); line-height: 1.35;
-                             max-height: 32px; overflow: hidden; margin-bottom: var(--space-1); }
-.scene-card .status-row { display: flex; gap: 4px; }
+
+/* 版本面板（故事板/视频阶段） */
+#version-panel { display: none; flex-direction: column; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#version-panel.visible { display: flex; }
+.ver-tabs { display: flex; padding: 8px 8px 0; gap: 2px; }
+.ver-tab { flex: 1; text-align: center; padding: 5px 0; border-radius: 6px 6px 0 0;
+           font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-muted);
+           background: var(--bg-base); border: 1px solid var(--border); border-bottom: none;
+           transition: all 0.12s; }
+.ver-tab:hover { color: var(--text-primary); }
+.ver-tab.active { background: var(--accent-light); color: var(--accent); }
+.ver-tab.selected-mark::after { content: '\2605'; font-size: 9px; margin-left: 2px; }
+.ver-tab-add { flex: 0 0 32px; display: flex; align-items: center; justify-content: center;
+               border-radius: 6px 6px 0 0; font-size: 16px; cursor: pointer;
+               color: var(--text-muted); background: var(--bg-base);
+               border: 1px dashed var(--border); border-bottom: none; }
+.ver-tab-add:hover { color: var(--accent); border-color: var(--accent-muted); }
+.ver-actions { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.va-row { display: flex; flex-direction: column; gap: 2px; }
+.va-label { font-size: 11px; color: var(--text-muted); }
+.va-select { width: 100%; font-size: 12px; padding: 3px 6px; border: 1px solid var(--border);
+             border-radius: 4px; background: var(--bg-base); color: var(--text-primary); }
+.va-btn { width: 100%; font-size: 12px; padding: 5px 0; border-radius: 4px; cursor: pointer;
+          border: none; font-weight: 500; background: var(--accent); color: var(--text-on-accent);
+          text-align: center; transition: background 0.12s; }
+.va-btn:hover { background: var(--accent-hover); }
+.va-btn:disabled { background: var(--bg-muted); color: var(--text-muted); cursor: not-allowed; }
+.va-btn-secondary { background: var(--bg-surface); color: var(--text-secondary);
+                    border: 1px solid var(--border); }
+.va-btn-secondary:hover { background: var(--bg-base); color: var(--text-primary); }
+.va-btn-secondary:disabled { background: var(--bg-muted); color: var(--text-muted); cursor: not-allowed; }
+
 .status-badge { font-size: var(--text-xs); padding: 1px 5px; border-radius: 4px;
                 background: var(--bg-muted); color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; }
 .status-badge.done { color: var(--success); background: var(--success-light); }
 .status-badge.progress { color: var(--warning); background: var(--warning-light); }
 .status-badge.failed { color: var(--error); background: var(--error-light); }
 
-#stage-progress-wrap { padding: var(--space-2); border-top: 1px solid var(--border); }
+#stage-progress-wrap { padding: var(--space-2); border-top: 1px solid var(--border); margin-top: auto; }
 #stage-progress-wrap .stage-pipeline { display: flex; align-items: center; gap: 2px; margin-bottom: var(--space-1); flex-wrap: wrap; }
 .stage-node { font-size: var(--text-xs); padding: 2px var(--space-2); border-radius: 3px; background: var(--bg-muted); color: var(--text-muted); white-space: nowrap; }
 .stage-node.active { background: var(--accent-light); color: var(--accent); }
@@ -132,13 +136,30 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
 .asset-card { background: var(--bg-elevated); border-radius: var(--radius-md); padding: var(--space-3); cursor: pointer;
               border: 1px solid var(--border); transition: all 0.15s; position: relative;
-              box-shadow: none; text-align: left; font: inherit; color: inherit; }
-.asset-card:hover { background: var(--bg-surface); border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
-.asset-card.selected { background: var(--accent-light); border-color: var(--accent); }
+              box-shadow: var(--shadow-sm); }
+.asset-card:hover { background: var(--bg-surface); border-color: var(--border-hover); box-shadow: var(--shadow-md); }
+.asset-card.selected { background: var(--accent-light); border-color: var(--accent); border-left-width: 2px; }
 .asset-card.failed { border-color: var(--error); }
 .asset-card .card-name { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); color: var(--text-primary); }
 .asset-card .card-seed { font-size: var(--text-xs); color: var(--text-muted); line-height: 1.4; max-height: 36px; overflow: hidden; }
 .asset-card .card-status { margin-top: var(--space-2); }
+
+/* 场景缩略卡片网格 */
+.scene-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); padding: var(--space-4); }
+.scene-thumb-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md);
+                    overflow: hidden; cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow-sm); }
+.scene-thumb-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+.stc-thumb { width: 100%; height: 120px; background: var(--bg-muted); overflow: hidden;
+             display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; }
+.stc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.stc-thumb .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--warning);
+                      border-radius: 50%; animation: spin 0.8s linear infinite; }
+.stc-body { padding: var(--space-2) var(--space-3); }
+.stc-body .stc-name { font-size: var(--text-base); font-weight: 600; }
+.stc-body .stc-ep { font-size: var(--text-xs); color: var(--text-muted); margin-left: 4px; }
+.stc-body .stc-status { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+.stc-body .stc-prompt { font-size: var(--text-xs); color: var(--text-muted); margin-top: 3px;
+                        max-height: 28px; overflow: hidden; line-height: 1.4; }
 
 .card-thumb { width: 100%; height: 100px; border-radius: 4px; margin-bottom: var(--space-2); background: var(--bg-muted);
               overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -146,14 +167,12 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .card-thumb .placeholder { color: var(--text-muted); }
 .card-thumb .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--warning);
                        border-radius: 50%; animation: spin 0.8s linear infinite; }
-.spin-icon { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 #detail-panel { flex: 1; overflow-y: auto; padding: var(--space-5); display: none; }
 #detail-panel.visible { display: block; }
-#detail-panel h2 { font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-3); color: var(--text-primary); }
-.back-link { font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; margin-bottom: var(--space-3);
-             display: inline-block; background: none; border: none; padding: 0; }
+#detail-panel h2 { font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-3); color: var(--accent); }
+.back-link { font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; margin-bottom: var(--space-3); display: inline-block; }
 .back-link:hover { color: var(--accent); }
 .empty-state { color: var(--text-muted); font-size: var(--text-base); text-align: center; margin-top: 60px; }
 .stage-section { margin-bottom: var(--space-5); }
@@ -161,14 +180,9 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .prompt-editor { width: 100%; background: var(--bg-surface); border: 1px solid var(--border);
                  border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); color: var(--text-primary);
                  line-height: 1.6; resize: vertical; min-height: 120px; }
-.prompt-editor:focus { outline: none; border-color: var(--accent-muted); box-shadow: var(--focus-ring); }
+.prompt-editor:focus { outline: none; border-color: var(--accent-muted); }
 .img-preview { width: 100%; max-height: 300px; object-fit: contain; border-radius: var(--radius-md);
                background: var(--bg-surface); margin-bottom: var(--space-3); }
-.preview-wrap { position: relative; display: inline-block; max-width: 100%; }
-.preview-zoom-btn { position: absolute; top: 6px; right: 6px; background: rgba(26,29,35,.72);
-                    border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;
-                    color: var(--text-on-accent); font-size: var(--text-sm); }
-.preview-zoom-btn:hover { background: rgba(26,29,35,.88); }
 .btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); font-size: var(--text-sm); cursor: pointer;
        border: none; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: var(--space-1); }
 .btn-primary { background: var(--accent); color: var(--text-on-accent); }
@@ -179,81 +193,33 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .btn-secondary:disabled { background: var(--bg-muted); color: var(--text-muted); cursor: not-allowed; }
 .btn-danger { background: var(--error); color: var(--text-on-accent); }
 .btn-row { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
-.mode-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-            margin-bottom: var(--space-3); flex-wrap: wrap; }
-.mode-label { font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; }
-.segmented-control { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm);
-                     background: var(--bg-muted); padding: 2px; gap: 2px; }
-.segmented-control button { border: 0; background: transparent; color: var(--text-secondary);
-                            border-radius: 4px; padding: 5px var(--space-3); cursor: pointer;
-                            font-size: var(--text-sm); }
-.segmented-control button.active { background: var(--bg-elevated); color: var(--accent); box-shadow: var(--shadow-sm); }
 .video-part-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);
                    padding: var(--space-3); margin-bottom: var(--space-2); }
-.video-part-card .part-header { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-2); }
-.video-preview { width: 100%; max-height: 300px; border-radius: var(--radius-md); margin-bottom: var(--space-2); }
-.video-prompt-editor { min-height: 80px; }
-.storyboard-browser { display: flex; flex-direction: column; gap: var(--space-3); }
-.storyboard-browser-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-                             flex-wrap: wrap; }
-.storyboard-browser-header h2 { margin: 0; }
-.storyboard-search { min-width: 240px; flex: 0 1 360px; border: 1px solid var(--border);
-                     border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
-                     background: var(--bg-base); color: var(--text-primary); }
-.storyboard-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
-.storyboard-column { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-surface);
-                     min-width: 0; }
-.storyboard-column-title { padding: var(--space-3); border-bottom: 1px solid var(--border);
-                           font-size: var(--text-sm); font-weight: 700; color: var(--text-secondary); }
-.storyboard-overview-card { width: 100%; text-align: left; display: flex; flex-direction: column; gap: var(--space-2);
-                            padding: var(--space-3); border: 0; border-bottom: 1px solid var(--border);
-                            background: var(--bg-elevated); color: inherit; cursor: pointer; }
-.storyboard-overview-card:last-child { border-bottom: 0; }
-.storyboard-overview-card:hover { background: var(--accent-light); }
-.storyboard-overview-card h3 { font-size: var(--text-base); margin: 0; color: var(--text-primary); }
-.storyboard-overview-meta { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.storyboard-overview-summary { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.45; }
-.story-input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
-.story-input-field label { display: block; font-size: var(--text-sm); font-weight: 600;
-                           color: var(--text-secondary); margin-bottom: var(--space-1); }
-.story-input-field textarea { min-height: 74px; }
-.story-input-field.full { grid-column: 1 / -1; }
-.script-readonly { background: var(--bg-muted); border: 1px solid var(--border); border-radius: var(--radius-md);
-                   padding: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary);
-                   line-height: 1.55; max-height: 150px; overflow: auto; white-space: pre-wrap; }
-.shot-plan-editor { min-height: 220px; font-family: var(--font-mono); font-size: var(--text-xs); }
+.video-part-card .part-header { font-size: var(--text-sm); font-weight: 600; color: var(--accent); margin-bottom: var(--space-2); }
+.ver-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+             background: rgba(99,102,241,0.12); color: var(--accent); margin-left: 8px; }
 
 .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay-scrim);
-                  z-index: var(--z-modal-backdrop); justify-content: center; align-items: center; padding: var(--space-4); }
+                  z-index: 100; justify-content: center; align-items: center; }
 .modal-overlay.visible { display: flex; }
 .modal { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg);
-         padding: var(--space-6); width: 440px; max-width: 100%; max-height: calc(100vh - var(--space-8));
-         overflow-y: auto; box-shadow: var(--shadow-lg); z-index: var(--z-modal); }
-.modal.modal-wide { width: 500px; }
-.modal h2 { font-size: var(--text-lg); color: var(--text-primary); margin-bottom: var(--space-4); }
+         padding: var(--space-6); width: 440px; max-width: 90vw; box-shadow: var(--shadow-lg); }
+.modal h2 { font-size: var(--text-lg); color: var(--accent); margin-bottom: var(--space-4); }
 .modal label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-1); margin-top: var(--space-3); }
-.modal label:first-child, .modal .label-first { margin-top: 0; }
 .modal input { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm);
               padding: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--text-primary); }
-.modal input:focus { outline: none; border-color: var(--accent-muted); box-shadow: var(--focus-ring); }
+.modal input:focus { outline: none; border-color: var(--accent-muted); }
 .modal .btn-row { margin-top: var(--space-5); justify-content: flex-end; }
-.settings-section { border-top: 1px solid var(--border); margin-top: var(--space-4); padding-top: var(--space-3); }
-.settings-section-first { border-top: 0; margin-top: 0; padding-top: 0; }
-.settings-input-row { display: flex; align-items: center; gap: var(--space-2); }
-.settings-input-row input { flex: 1; min-width: 0; }
-.settings-clear-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
-.settings-clear-btn[aria-pressed="true"] { background: var(--error-light); color: var(--error); }
-.confirm-message { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6; }
 
 #agent-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px;
                background: var(--bg-elevated); border-left: 1px solid var(--border);
-               display: flex; flex-direction: column; z-index: var(--z-agent);
-               transform: translateX(100%);
-               box-shadow: var(--shadow-lg); visibility: hidden; pointer-events: none; }
-#agent-panel.open { transform: translateX(0); visibility: visible; pointer-events: auto; }
+               display: flex; flex-direction: column; z-index: 50;
+               transform: translateX(100%); transition: transform 0.2s ease;
+               box-shadow: var(--shadow-lg); }
+#agent-panel.open { transform: translateX(0); }
 #agent-panel-header { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border);
                        display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
-#agent-panel-header span { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); flex: 1; }
+#agent-panel-header span { font-size: var(--text-sm); font-weight: 600; color: var(--accent); flex: 1; }
 #agent-clear { background: none; border: 1px solid var(--border); border-radius: 5px;
                color: var(--text-muted); font-size: var(--text-xs); padding: 3px var(--space-2); cursor: pointer; }
 #agent-clear:hover { color: var(--text-secondary); border-color: var(--border-hover); }
@@ -288,7 +254,7 @@ svg.lucide-lg { width: 20px; height: 20px; }
 #agent-send:disabled { background: var(--bg-muted); cursor: not-allowed; }
 #agent-fab { position: fixed; right: var(--space-4); bottom: 20px; background: var(--accent); color: var(--text-on-accent);
              border: none; border-radius: 50%; width: 44px; height: 44px;
-             cursor: pointer; box-shadow: var(--shadow-fab); z-index: calc(var(--z-agent) - 1);
+             cursor: pointer; box-shadow: var(--shadow-fab); z-index: 49;
              display: flex; align-items: center; justify-content: center; }
 #agent-fab:hover { background: var(--accent-hover); }
 #agent-fab.hidden { display: none; }
@@ -298,7 +264,7 @@ svg.lucide-lg { width: 20px; height: 20px; }
                padding: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--warning-dark); margin-bottom: var(--space-3); }
 .error-banner { background: var(--error-light); border: 1px solid var(--error); border-radius: var(--radius-sm);
                 padding: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--error); margin-bottom: var(--space-3); }
-#toast-container { position: fixed; top: 16px; right: 16px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; }
+#toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
 .toast { padding: 10px 16px; border-radius: var(--radius-sm); font-size: var(--text-sm); box-shadow: var(--shadow-md);
          animation: toast-in 0.25s ease; max-width: 360px; }
 .toast.success { background: var(--success-light); border: 1px solid var(--success); color: #166534; }
@@ -306,17 +272,15 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .toast.info { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 .recent-project-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
-                        padding: var(--space-2) var(--space-3); cursor: pointer; display: flex; align-items: center; gap: var(--space-3);
-                        width: 100%; font: inherit; text-align: left; }
+                        padding: var(--space-2) var(--space-3); cursor: pointer; display: flex; align-items: center; gap: var(--space-3); }
 .recent-project-item:hover { background: var(--bg-surface); border-color: var(--accent-muted); }
 .recent-project-item .rp-name { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); flex-shrink: 0; }
 .recent-project-item .rp-path { font-size: var(--text-xs); color: var(--text-muted); flex: 1; overflow: hidden;
                                   text-overflow: ellipsis; white-space: nowrap; }
-.recent-loading { font-size: var(--text-xs); color: var(--text-muted); }
 
 /* Template editor */
 .template-editor-wrap { padding: var(--space-5); display: flex; flex-direction: column; height: 100%; }
-.template-editor-wrap h2 { font-size: var(--text-lg); color: var(--text-primary); margin-bottom: var(--space-4); }
+.template-editor-wrap h2 { font-size: var(--text-lg); color: var(--accent); margin-bottom: var(--space-4); }
 .template-type-select { width: 100%; background: var(--bg-base); border: 1px solid var(--border);
                         border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
                         font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-3); }
@@ -329,60 +293,16 @@ svg.lucide-lg { width: 20px; height: 20px; }
 .import-preview-box { display: none; margin-top: var(--space-3); background: var(--bg-surface);
                       border: 1px solid var(--border); border-radius: var(--radius-sm);
                       padding: 10px 14px; font-size: var(--text-sm); line-height: 1.8; color: var(--text-secondary); }
-.import-preview-title { color: var(--text-primary); }
-.import-preview-path { color: var(--text-muted); font-size: var(--text-xs); }
-.import-recent-list { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
-.field-row { display: flex; gap: 6px; margin-top: 4px; }
-.field-row input { flex: 1; }
-.modal-actions { margin-top: var(--space-4); justify-content: flex-end; }
-.template-actions { display: flex; gap: var(--space-3); margin-top: var(--space-3); }
-.template-actions button { flex: 1; }
-.template-toast { display: none; margin-top: var(--space-2); text-align: center; color: var(--success); font-size: var(--text-sm); }
-#lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: var(--z-lightbox);
-            cursor: zoom-out; display: none; align-items: center; justify-content: center; padding: var(--space-4); }
-#lightbox.visible { display: flex; }
-#lightbox-img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius-sm); }
-
-@media (max-width: 760px) {
-  body { overflow: hidden; height: 100dvh; min-height: 100dvh; }
-  #header { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-3); }
-  #header .settings-btn { margin-left: 0; }
-  #main { flex-direction: column; min-height: 0; }
-  #sidebar { width: 100%; min-height: 150px; max-height: 40dvh; border-right: 0; border-bottom: 1px solid var(--border); }
-  #phase-tabs { flex-direction: row; overflow-x: auto; }
-  .phase-tab { min-height: 44px; white-space: nowrap; }
-  #sidebar-storyboard-list { min-height: 72px; }
-  #stage-progress-wrap { padding: var(--space-2) var(--space-3); }
-  #content-panel { flex: 1; min-height: 0; }
-  #batch-toolbar { flex-wrap: wrap; align-items: flex-start; padding: var(--space-2) var(--space-3); }
-  #batch-toolbar .btn { flex: 1 1 140px; justify-content: center; }
-  #grid-area { padding: var(--space-3); }
-  .asset-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-  #detail-panel { padding: var(--space-3); }
-  .modal-overlay { align-items: flex-start; overflow-y: auto; padding: var(--space-3); }
-  .modal { max-height: calc(100dvh - 24px); padding: var(--space-4); }
-  #agent-panel { width: min(100vw, 380px); }
-  #toast-container { left: 16px; right: 16px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.001ms !important;
-  }
-}
 </style>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
 <div id="header">
-  <h1>Manhua Workflow</h1>
-  <button class="meta" id="project-meta" type="button">未加载项目</button>
-  <span class="tasks-badge hidden" id="tasks-badge">0 任务进行中</span>
-  <button class="settings-btn" id="settings-btn" type="button" title="设置"><i data-lucide="settings"></i></button>
+  <h1>精品原型v1</h1>
+  <span class="meta" id="project-meta" onclick="openImportDialog()">未加载项目</span>
+  <span class="tasks-badge" id="tasks-badge" style="display:none">0 任务进行中</span>
+  <button class="settings-btn" onclick="openSettings()" title="设置"><i data-lucide="settings"></i></button>
 </div>
 
 <div id="main">
@@ -394,19 +314,22 @@ svg.lucide-lg { width: 20px; height: 20px; }
       <div class="phase-tab" data-phase="video_prompts"><i data-lucide="video"></i> 视频</div>
       <div class="phase-tab" data-phase="templates"><i data-lucide="file-text"></i> 模板</div>
     </div>
-    <div id="sidebar-storyboard-list"></div>
+    <div id="version-panel">
+      <div class="ver-tabs" id="ver-tabs"></div>
+      <div class="ver-actions" id="ver-actions"></div>
+    </div>
     <div id="stage-progress-wrap">
       <div class="stage-pipeline" id="stage-pipeline"></div>
-      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
     </div>
   </div>
 
   <div id="content-panel">
     <div id="batch-toolbar">
       <span class="toolbar-label" id="toolbar-label">批量操作</span>
-      <button class="btn btn-secondary" id="btn-batch-gen" type="button">全部生成提示词</button>
-      <button class="btn btn-primary" id="btn-batch-submit" type="button">全部提交</button>
-      <button class="btn btn-danger" id="btn-batch-retry" type="button">全部重试失败</button>
+      <button class="btn btn-secondary" id="btn-batch-gen" onclick="batchGeneratePrompts()">全部生成提示词</button>
+      <button class="btn btn-primary" id="btn-batch-submit" onclick="batchSubmitAll()">全部提交</button>
+      <button class="btn btn-danger" id="btn-batch-retry" onclick="batchRetryFailed()">全部重试失败</button>
       <span class="batch-progress" id="batch-progress"></span>
     </div>
     <div class="empty-state" id="empty-hint">选择左侧场景查看详情</div>
@@ -416,116 +339,72 @@ svg.lucide-lg { width: 20px; height: 20px; }
 </div>
 
 <!-- 设置弹窗 -->
-<div class="modal-overlay" id="settings-overlay">
+<div class="modal-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
   <div class="modal">
     <h2>API 设置</h2>
-    <div class="settings-section settings-section-first">
-      <label for="set-vidu">Vidu API Key</label>
-      <div class="settings-input-row">
-        <input id="set-vidu" type="password" placeholder="输入 Vidu API Key">
-        <button class="btn btn-secondary settings-clear-btn" id="clear-vidu" type="button" data-setting-clear="vidu_api_key" aria-label="清除 Vidu API Key" title="清除 Vidu API Key"><i data-lucide="trash-2"></i></button>
-      </div>
-      <label for="set-wetoken">Wetoken API Key</label>
-      <div class="settings-input-row">
-        <input id="set-wetoken" type="password" placeholder="输入 Wetoken API Key">
-        <button class="btn btn-secondary settings-clear-btn" id="clear-wetoken" type="button" data-setting-clear="wetoken_api_key" aria-label="清除 Wetoken API Key" title="清除 Wetoken API Key"><i data-lucide="trash-2"></i></button>
-      </div>
-      <label for="set-idealab">ideaLAB API Key</label>
-      <div class="settings-input-row">
-        <input id="set-idealab" type="password" placeholder="输入 ideaLAB API Key">
-        <button class="btn btn-secondary settings-clear-btn" id="clear-idealab" type="button" data-setting-clear="idealab_api_key" aria-label="清除 ideaLAB API Key" title="清除 ideaLAB API Key"><i data-lucide="trash-2"></i></button>
-      </div>
-      <label for="set-idealab-url">ideaLAB Base URL</label>
-      <input id="set-idealab-url" type="text" placeholder="https://idealab.alibaba-inc.com/api/anthropic">
-    </div>
-    <div class="settings-section">
-      <label for="set-github-token">GitHub Token</label>
-      <div class="settings-input-row">
-        <input id="set-github-token" type="password" placeholder="输入 GitHub Token">
-        <button class="btn btn-secondary settings-clear-btn" id="clear-github-token" type="button" data-setting-clear="gh_token" aria-label="清除 GitHub Token" title="清除 GitHub Token"><i data-lucide="trash-2"></i></button>
-      </div>
-      <label for="set-github-owner">GitHub Owner</label>
-      <input id="set-github-owner" type="text" placeholder="例如 your-name">
-      <label for="set-github-repo">GitHub Repo</label>
-      <input id="set-github-repo" type="text" placeholder="例如 comic-assets">
-    </div>
+    <label>Vidu API Key</label>
+    <input id="set-vidu" type="password" placeholder="输入 Vidu API Key">
+    <label>Wetoken API Key</label>
+    <input id="set-wetoken" type="password" placeholder="输入 Wetoken API Key">
+    <label>ideaLAB API Key</label>
+    <input id="set-idealab" type="password" placeholder="输入 ideaLAB API Key">
+    <label>ideaLAB Base URL</label>
+    <input id="set-idealab-url" type="text" placeholder="https://api.idealab.com/v1">
     <div class="btn-row">
-      <button class="btn btn-secondary" id="settings-cancel-btn" type="button">取消</button>
-      <button class="btn btn-primary" id="settings-save-btn" type="button">保存</button>
+      <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
+      <button class="btn btn-primary" onclick="saveSettings()">保存</button>
     </div>
   </div>
 </div>
 
-<div id="chat-bar" class="hidden"></div>
+<div id="chat-bar" style="display:none"></div>
 
 <!-- 导入项目对话框 -->
 <div class="modal-overlay" id="import-overlay">
-  <div class="modal modal-wide">
+  <div class="modal" style="width:500px">
     <h2>打开项目</h2>
-
-    <!-- 最近项目列表 -->
     <div id="import-recent-section">
-      <label class="label-first">最近项目</label>
-      <div id="import-recent-list" class="import-recent-list"></div>
+      <label style="margin-top:0">最近项目</label>
+      <div id="import-recent-list" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto"></div>
     </div>
-
-    <!-- 新建：路径输入 -->
-    <label>从剧本目录导入（新建）</label>
-    <div class="field-row">
-      <input id="import-path" type="text" placeholder="粘贴绝对路径，如 /Users/name/剧本标准输入 或 C:\Users\name\Desktop\剧本标准输入" list="import-path-history">
+    <label style="margin-top:16px">从剧本目录导入（新建）</label>
+    <div style="display:flex;gap:6px;margin-top:4px">
+      <input id="import-path" type="text" placeholder="粘贴目录绝对路径，如 C:\Desktop\剧本标准输入" list="import-path-history" style="flex:1">
       <datalist id="import-path-history"></datalist>
     </div>
-    <label>项目名称</label>
+    <label style="margin-top:8px">项目名称</label>
     <input id="import-name" type="text" placeholder="自动从目录名填充，可修改">
-
-    <!-- 解析预览 -->
     <div id="import-preview" class="import-preview-box"></div>
-    <div id="import-error" class="error-banner hidden"></div>
-
-    <div class="btn-row modal-actions">
-      <button class="btn btn-secondary" id="import-cancel-btn" type="button">取消</button>
-      <button class="btn btn-secondary" id="import-parse-btn" type="button">解析预览</button>
-      <button class="btn btn-primary" id="import-confirm-btn" type="button" disabled>导入</button>
+    <div id="import-error" style="display:none" class="error-banner"></div>
+    <div class="btn-row" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-secondary" id="import-cancel-btn" onclick="closeImportDialog()">取消</button>
+      <button class="btn btn-secondary" id="import-parse-btn" onclick="doParsePreview()">解析预览</button>
+      <button class="btn btn-primary" id="import-confirm-btn" onclick="doImportConfirm()" disabled>导入</button>
     </div>
   </div>
 </div>
 
 <!-- 助手侧边面板 -->
-<div id="agent-panel" aria-hidden="true">
+<div id="agent-panel">
   <div id="agent-panel-header">
     <span>助手</span>
-    <button id="agent-clear" type="button">清空对话</button>
-    <button id="agent-close" type="button" aria-label="关闭助手"><i data-lucide="x"></i></button>
+    <button id="agent-clear" onclick="clearAgentHistory()">清空对话</button>
+    <button id="agent-close" onclick="closeAgentPanel()"><i data-lucide="x"></i></button>
   </div>
   <div id="agent-messages"></div>
   <div id="agent-input-row">
     <textarea id="agent-input" placeholder="修改提示词 / 提交任务 / 询问进度..." rows="1"></textarea>
-    <button id="agent-send" type="button">发送</button>
+    <button id="agent-send" onclick="sendAgentMessage()">发送</button>
   </div>
 </div>
 
-<!-- Toast 通知 -->
 <div id="toast-container"></div>
-
-<!-- 确认弹窗 -->
-<div class="modal-overlay" id="confirm-overlay">
-  <div class="modal">
-    <h2 id="confirm-title">确认操作</h2>
-    <p id="confirm-message" class="confirm-message"></p>
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="confirm-cancel-btn" type="button">取消</button>
-      <button class="btn btn-primary" id="confirm-ok-btn" type="button">确认</button>
-    </div>
-  </div>
-</div>
-
-<!-- 浮动打开按钮 -->
-<button id="agent-fab" type="button" title="助手" aria-label="打开助手"><i data-lucide="message-circle"></i></button>
+<button id="agent-fab" onclick="openAgentPanel()" title="助手"><i data-lucide="sparkles"></i></button>
 
 <script>
 let state = {
-  projectPath: null,   // 完整绝对路径，传给后端
-  projectName: null,   // 显示名称（短名）
+  projectPath: null,
+  projectName: null,
   pipeline: null,
   currentPhase: 'characters',
   selectedScene: null,
@@ -533,130 +412,10 @@ let state = {
   batchRunning: false,
   templateCache: null,
   templateType: 'character',
-  storyboardPromptMode: 'v1',
-  videoPromptMode: 'v1',
-  storyboardPage: 1,
-  storyboardSearch: '',
+  activeBoardVersion: null,   // 全局当前版本键，如 "v1"/"v2"
+  versionQuality: 'high',
+  versionResolution: '2K',
 };
-
-function projectPathParam() {
-  return `project_path=${encodeURIComponent(state.projectPath)}`;
-}
-
-function createIcon(name, className = '') {
-  const icon = document.createElement('i');
-  icon.dataset.lucide = name;
-  if (className) icon.className = className;
-  return icon;
-}
-
-function createStatusBadge(status, labelPrefix = '') {
-  const badge = document.createElement('span');
-  badge.className = `status-badge ${statusClass(status)}`;
-  if (labelPrefix) badge.append(document.createTextNode(labelPrefix));
-  badge.append(createStatusIcon(status), document.createTextNode(` ${status || 'needed'}`));
-  return badge;
-}
-
-function createStatusIcon(status) {
-  const names = {
-    completed: 'check',
-    submitted: 'loader',
-    failed: 'x',
-    needed: 'circle',
-    pending: 'circle',
-  };
-  const icon = createIcon(names[status] || 'minus', 'lucide-sm');
-  if (status === 'submitted') icon.classList.add('spin-icon');
-  return icon;
-}
-
-function createBanner(className, text) {
-  const banner = document.createElement('div');
-  banner.className = className;
-  banner.textContent = text;
-  return banner;
-}
-
-function createErrorBanner(message) {
-  return createBanner('error-banner', `失败原因：${message}`);
-}
-
-function createWarnBanner(message) {
-  return createBanner('warn-banner', message);
-}
-
-function assetFileUrl(filePath, preview = false) {
-  return `/api/asset-file?${projectPathParam()}&file_path=${encodeURIComponent(filePath)}${preview ? '&preview=true' : ''}`;
-}
-
-function createAssetImage(filePath, className = '') {
-  const img = document.createElement('img');
-  img.src = assetFileUrl(filePath, true);
-  if (className) img.className = className;
-  img.alt = '';
-  img.addEventListener('error', () => {
-    img.style.display = 'none';
-  });
-  return img;
-}
-
-function createImagePreview(filePath) {
-  const imgUrl = assetFileUrl(filePath);
-  const imgWrap = document.createElement('div');
-  imgWrap.className = 'preview-wrap';
-  imgWrap.appendChild(createAssetImage(filePath, 'img-preview'));
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'preview-zoom-btn';
-  button.textContent = '放大';
-  button.addEventListener('click', () => openLightbox(imgUrl));
-  imgWrap.appendChild(button);
-  return imgWrap;
-}
-
-function getStoryboardPages(board) {
-  return getStoryboardOutputs(board, 'v2');
-}
-
-function getStoryboardOutputs(board, mode = state.storyboardPromptMode) {
-  const version = board.board_versions?.[mode] || {};
-  if (Array.isArray(version.outputs) && version.outputs.length > 0) return version.outputs;
-  if (mode === 'v2' && Array.isArray(version.pages) && version.pages.length > 0) return version.pages;
-  if (mode === 'v1') {
-    return [{
-      id: 'v1_main',
-      label: 'v1 主图',
-      page: 1,
-      shot_plan: board.shot_plan || version.shot_plan || {},
-      board_status: board.board_status || version.board_status || 'needed',
-      draft_prompt: board.draft_prompt || version.draft_prompt || '',
-      board_error: board.board_error || version.board_error || '',
-      video_parts: board.video_parts || version.video_parts || [],
-      video_duration: board.video_duration || version.video_duration,
-      video_ratio: board.video_ratio || version.video_ratio,
-    }];
-  }
-  return [];
-}
-
-function getStoryboardTarget(board, mode = state.storyboardPromptMode, page = state.storyboardPage) {
-  const outputs = getStoryboardOutputs(board, mode);
-  if (mode === 'v1') return outputs.find(item => item.id === 'v1_main') || outputs[0] || {};
-  return outputs.find(item => item.page === page) || outputs[0] || {};
-}
-
-function getCurrentPageForBoard(board) {
-  const pages = getStoryboardPages(board);
-  if (!pages.some(item => item.page === state.storyboardPage)) {
-    state.storyboardPage = pages[0]?.page || 1;
-  }
-  return state.storyboardPage;
-}
-
-function storyboardImagePath(sceneKey, mode = state.storyboardPromptMode, page = state.storyboardPage) {
-  return mode === 'v1' ? `storyboards/${sceneKey}/${sceneKey}.png` : `storyboards/${sceneKey}/${mode}_p${page || 1}.png`;
-}
 
 async function init() {
   const saved = localStorage.getItem('manhua_project_path');
@@ -681,6 +440,10 @@ async function loadProject(projectPath) {
     state.templateCache = null;
     state.pipeline = await resp.json();
     state.projectName = state.pipeline.project || projectPath.split(/[/\\]/).pop();
+    const vers = getAvailableVersionKeys();
+    if (!state.activeBoardVersion || !vers.includes(state.activeBoardVersion)) {
+      state.activeBoardVersion = vers.length > 0 ? vers[0] : null;
+    }
     localStorage.setItem('manhua_project_path', projectPath);
     renderAll();
     startPolling();
@@ -692,10 +455,9 @@ function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async () => {
     if (!state.projectPath) return;
-    // 没有 submitted 任务时停止轮询，避免页面抖动
     if (!hasSubmittedTasks()) { stopPolling(); return; }
     try {
-      const resp = await fetch(`/api/project/status?${projectPathParam()}`);
+      const resp = await fetch(`/api/project/status?project_path=${encodeURIComponent(state.projectPath)}`);
       if (resp.ok) {
         const newData = await resp.json();
         const keys = ['assets', 'storyboards'];
@@ -714,174 +476,137 @@ function stopPolling() {
 function hasSubmittedTasks() {
   const p = state.pipeline;
   if (!p) return false;
-  for (const v of Object.values(p.assets?.characters || {})) if (v.status === 'submitted') return true;
-  for (const v of Object.values(p.assets?.scenes || {})) if (v.status === 'submitted') return true;
-  for (const v of Object.values(p.assets?.props || {})) if (v.status === 'submitted') return true;
-  for (const v of Object.values(p.storyboards || {})) {
-    if (v.board_status === 'submitted') return true;
-    for (const vp of v.video_parts || []) if (vp.video_status === 'submitted') return true;
-    for (const mode of ['v1', 'v2', 'v3', 'v4']) {
-      for (const output of getStoryboardOutputs(v, mode)) {
-        if (output.board_status === 'submitted') return true;
-        for (const vp of output.video_parts || []) if (vp.video_status === 'submitted') return true;
-      }
+  for (const v of Object.values(p.assets?.characters || {}))
+    if (v.status === 'submitted') return true;
+  for (const v of Object.values(p.assets?.scenes || {}))
+    if (v.status === 'submitted') return true;
+  for (const v of Object.values(p.assets?.props || {}))
+    if (v.status === 'submitted') return true;
+  // 新结构: storyboards[verKey][sceneKey]
+  for (const scenes of Object.values(p.storyboards || {})) {
+    if (!scenes || typeof scenes !== 'object') continue;
+    for (const scene of Object.values(scenes)) {
+      if (!scene || typeof scene !== 'object') continue;
+      if (scene.status === 'submitted') return true;
+      for (const vp of scene.video_parts || [])
+        if (vp.video_status === 'submitted') return true;
     }
   }
   return false;
 }
 
-// ── 依赖检查 ──
+function deriveAssetStatus(asset) { return asset?.status || 'needed'; }
+
+// 获取 storyboards 顶层版本键列表，如 ["v1","v2"]
+function getAvailableVersionKeys() {
+  const sb = state.pipeline?.storyboards || {};
+  return Object.keys(sb).filter(k => sb[k] && typeof sb[k] === 'object').sort();
+}
+
+// 获取当前版本下某场景对象（直接是扁平 scene 对象）
+function getActiveScene(sceneKey) {
+  if (!state.activeBoardVersion) return null;
+  return state.pipeline?.storyboards?.[state.activeBoardVersion]?.[sceneKey] || null;
+}
+
 function getDependencyInfo() {
   const p = state.pipeline;
-  if (!p) return { storyboardBlocked: true, storyboardReason: '', videoBlocked: true, videoReason: '' };
-
+  if (!p) return { storyboardBlocked: true, storyboardReason: '' };
   const charDone = Object.values(p.assets?.characters || {}).filter(v => v.status === 'completed').length;
-  const charTotal = Object.keys(p.assets?.characters || {}).length;
   const sceneDone = Object.values(p.assets?.scenes || {}).filter(v => v.status === 'completed').length;
+  const charTotal = Object.keys(p.assets?.characters || {}).length;
   const sceneTotal = Object.keys(p.assets?.scenes || {}).length;
-
   const storyboardBlocked = charDone === 0 || sceneDone === 0;
   let storyboardReason = '';
   if (charDone === 0) storyboardReason += '至少需要1个角色已完成';
   if (charDone === 0 && sceneDone === 0) storyboardReason += '，';
   if (sceneDone === 0) storyboardReason += '至少需要1个场景已完成';
-
-  return { storyboardBlocked, storyboardReason, videoBlocked: false, videoReason: '',
-           charDone, charTotal, sceneDone, sceneTotal };
+  return { storyboardBlocked, storyboardReason, charDone, charTotal, sceneDone, sceneTotal };
 }
 
-async function ensureRequiredApiKey(kind) {
-  try {
-    const resp = await fetch('/api/settings');
-    if (!resp.ok) throw new Error(resp.status);
-    const settings = await resp.json();
-    const required = {
-      vidu: { ok: settings._has_vidu, label: 'Vidu' },
-      wetoken: { ok: settings._has_wetoken, label: 'Wetoken' },
-      idealab: { ok: settings._has_idealab, label: 'ideaLAB' },
-      github: { ok: settings._has_gh, label: 'GitHub 素材上传配置' },
-    }[kind];
-    if (!required?.ok) {
-      const message = kind === 'github'
-        ? '缺少 GitHub 素材上传配置，请先在设置中填写 Token、Owner 和 Repo'
-        : `缺少 ${required?.label || kind} API Key，请先在设置中配置`;
-      showToast(message, 'error');
-      return false;
-    }
-    return true;
-  } catch(e) {
-    showToast('无法读取 API 设置：' + e.message, 'error');
-    return false;
-  }
-}
-
-function getStoryboardReferenceIssues(board) {
-  const p = state.pipeline;
-  const issues = [];
-  for (const char of (board.characters_in_scene || [])) {
-    const info = p.assets?.characters?.[char];
-    if (!info || info.status !== 'completed') issues.push(`角色「${char}」未完成`);
-  }
-  if (board.scene_location) {
-    const scene = p.assets?.scenes?.[board.scene_location] || p.assets?.props?.[board.scene_location];
-    if (!scene || scene.status !== 'completed') issues.push(`场景/道具「${board.scene_location}」未完成`);
-  }
-  return issues;
-}
-
-function showReferenceIssues(issues) {
-  if (!issues.length) return false;
-  const preview = issues.slice(0, 3).join('，');
-  const suffix = issues.length > 3 ? ` 等 ${issues.length} 项` : '';
-  showToast(`前置参考未完成：${preview}${suffix}`, 'error', 5000);
-  return true;
-}
+function isBoardPhase() { return state.currentPhase === 'storyboards' || state.currentPhase === 'video_prompts'; }
 
 function renderAll() {
   if (!state.pipeline) return;
   const p = state.pipeline;
-  const totalScenes = Object.keys(p.storyboards || {}).length;
-  document.getElementById('project-meta').textContent = `${p.project} · ${totalScenes} 场景`;
+  // 显示当前版本的场景数
+  const activeScenesDict = state.activeBoardVersion ? (p.storyboards?.[state.activeBoardVersion] || {}) : {};
+  const activeScenes = Object.values(activeScenesDict).filter(s => s && typeof s === 'object').length;
+  const verKeys = getAvailableVersionKeys();
+  document.getElementById('project-meta').textContent = `${p.project} · ${verKeys.length} 版本 · ${activeScenes} 场景`;
 
   let inProgress = 0;
-  for (const [,v] of Object.entries(p.assets?.characters || {})) if (v.status === 'submitted') inProgress++;
-  for (const [,v] of Object.entries(p.assets?.scenes || {})) if (v.status === 'submitted') inProgress++;
-  for (const [,v] of Object.entries(p.storyboards || {})) {
-    for (const mode of ['v1', 'v2', 'v3', 'v4']) {
-      for (const output of getStoryboardOutputs(v, mode)) {
-        if (output.board_status === 'submitted') inProgress++;
-        for (const vp of output.video_parts || []) if (vp.video_status === 'submitted') inProgress++;
-      }
+  for (const v of Object.values(p.assets?.characters || {})) if (v.status === 'submitted') inProgress++;
+  for (const v of Object.values(p.assets?.scenes || {})) if (v.status === 'submitted') inProgress++;
+  for (const v of Object.values(p.assets?.props || {})) if (v.status === 'submitted') inProgress++;
+  for (const scenes of Object.values(p.storyboards || {})) {
+    if (!scenes || typeof scenes !== 'object') continue;
+    for (const scene of Object.values(scenes)) {
+      if (!scene || typeof scene !== 'object') continue;
+      if (scene.status === 'submitted') inProgress++;
+      for (const vp of scene.video_parts || []) if (vp.video_status === 'submitted') inProgress++;
     }
   }
   const badge = document.getElementById('tasks-badge');
-  if (inProgress > 0) {
-    badge.classList.remove('hidden');
-    badge.textContent = `${inProgress} 任务进行中`;
-  } else {
-    badge.classList.add('hidden');
-  }
+  if (inProgress > 0) { badge.style.display = ''; badge.textContent = `${inProgress} 任务进行中`; }
+  else badge.style.display = 'none';
 
   document.querySelectorAll('.phase-tab').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.phase === state.currentPhase);
   });
 
-  renderSidebarList();
+  renderVersionPanel();
   renderMainArea();
   updateStageProgress();
   lucide.createIcons();
 }
 
-function renderSidebarList() {
-  const container = document.getElementById('sidebar-storyboard-list');
-  container.replaceChildren();
-  if (state.currentPhase === 'characters' || state.currentPhase === 'scenes_props') return;
+// ── 左侧版本面板 ──
+function renderVersionPanel() {
+  const panel = document.getElementById('version-panel');
+  if (!isBoardPhase()) { panel.classList.remove('visible'); return; }
+  panel.classList.add('visible');
 
-  const p = state.pipeline;
-  const byEpisode = {};
-  for (const [key, board] of Object.entries(p.storyboards || {})) {
-    const ep = board.episode || 1;
-    if (!byEpisode[ep]) byEpisode[ep] = [];
-    byEpisode[ep].push({key, board});
+  const keys = getAvailableVersionKeys();
+  const tabsEl = document.getElementById('ver-tabs');
+  const actionsEl = document.getElementById('ver-actions');
+
+  let tabsHtml = '';
+  for (const vk of keys) {
+    const isActive = vk === state.activeBoardVersion;
+    tabsHtml += `<div class="ver-tab${isActive ? ' active' : ''}" onclick="switchVersion('${vk}')">${vk}</div>`;
   }
-  for (const ep of Object.keys(byEpisode).sort((a,b) => a-b)) {
-    const group = document.createElement('div');
-    group.className = 'episode-group';
-    const label = document.createElement('div');
-    label.className = 'episode-label';
-    label.textContent = `第 ${ep} 集`;
-    group.appendChild(label);
-    for (const {key, board} of byEpisode[ep]) {
-      const target = state.currentPhase === 'video_prompts'
-        ? getStoryboardTarget(board, state.videoPromptMode, state.storyboardPage)
-        : getStoryboardTarget(board, state.storyboardPromptMode, state.storyboardPage);
-      const card = document.createElement('div');
-      card.className = 'scene-card' + (state.selectedScene === key ? ' selected' : '');
-      const vidParts = target.video_parts || [];
-      const vidDone = vidParts.filter(x => x.video_status === 'completed').length;
-      const name = document.createElement('div');
-      name.className = 'scene-name';
-      name.textContent = board.script_title || key;
-      const summary = document.createElement('div');
-      summary.className = 'scene-summary';
-      summary.textContent = summarizeScript(board.script_segment || '', 42);
-      const statusRow = document.createElement('div');
-      statusRow.className = 'status-row';
-      statusRow.appendChild(createStatusBadge(target.board_status, '板'));
-      if (state.currentPhase === 'video_prompts') {
-        const videoBadge = document.createElement('span');
-        videoBadge.className = `status-badge ${vidParts.length > 0 && vidDone === vidParts.length ? 'done' : ''}`;
-        videoBadge.textContent = `视 ${vidDone}/${vidParts.length}`;
-        statusRow.appendChild(videoBadge);
-      }
-      card.append(name, summary, statusRow);
-      card.addEventListener('click', () => { state.selectedScene = key; renderMainArea(); });
-      group.appendChild(card);
-    }
-    container.appendChild(group);
-  }
+  tabsEl.innerHTML = tabsHtml;
+
+  actionsEl.innerHTML = `
+    <div class="va-row">
+      <span class="va-label">画质 (image2)</span>
+      <select class="va-select" onchange="state.versionQuality=this.value">
+        <option value="high"${state.versionQuality==='high'?' selected':''}>high</option>
+        <option value="medium"${state.versionQuality==='medium'?' selected':''}>medium</option>
+        <option value="low"${state.versionQuality==='low'?' selected':''}>low</option>
+      </select>
+    </div>
+    <div class="va-row">
+      <span class="va-label">分辨率</span>
+      <select class="va-select" onchange="state.versionResolution=this.value">
+        <option value="2K"${state.versionResolution==='2K'?' selected':''}>2K</option>
+        <option value="1K"${state.versionResolution==='1K'?' selected':''}>1K</option>
+      </select>
+    </div>
+    <button class="va-btn" onclick="batchGenBoardPrompts()" ${state.batchRunning?'disabled':''}>批量生成提示词</button>
+    <button class="va-btn" onclick="batchSubmitBoards()" ${state.batchRunning?'disabled':''}>批量生成板图</button>
+    <button class="va-btn va-btn-secondary" onclick="batchSubmitVideos()" ${state.batchRunning?'disabled':''}>批量提交视频</button>
+  `;
 }
 
+function switchVersion(vk) {
+  state.activeBoardVersion = vk;
+  state.selectedScene = null;
+  renderAll();
+}
+
+// ── 主内容区 ──
 function renderMainArea() {
   const gridArea = document.getElementById('grid-area');
   const detailPanel = document.getElementById('detail-panel');
@@ -889,7 +614,6 @@ function renderMainArea() {
   const toolbar = document.getElementById('batch-toolbar');
 
   if (state.currentPhase === 'characters' || state.currentPhase === 'scenes_props') {
-    // 角色和场景阶段：显示批量工具栏 + 网格
     toolbar.classList.add('visible');
     updateToolbarButtons();
     emptyHint.style.display = 'none';
@@ -911,289 +635,93 @@ function renderMainArea() {
     renderTemplateEditor(detailPanel);
   } else {
     // 故事板/视频阶段
+    toolbar.classList.remove('visible');
     if (state.selectedScene) {
-      toolbar.classList.remove('visible');
       gridArea.classList.remove('visible');
-      emptyHint.style.display = 'none';
       detailPanel.classList.add('visible');
+      emptyHint.style.display = 'none';
       renderDetail(state.selectedScene);
     } else {
-      toolbar.classList.remove('visible');
-      gridArea.classList.add('visible');
       detailPanel.classList.remove('visible');
-      emptyHint.style.display = '';
+      gridArea.classList.add('visible');
       emptyHint.style.display = 'none';
-      renderStoryboardOverview(gridArea);
+      renderSceneGrid(gridArea);
     }
   }
 }
 
-function renderStoryboardOverview(container) {
+// ── 场景缩略卡片网格 ──
+function renderSceneGrid(container) {
   const p = state.pipeline;
-  const boards = Object.entries(p.storyboards || {});
-  const wrap = document.createElement('div');
-  wrap.className = 'storyboard-browser';
-
-  const header = document.createElement('div');
-  header.className = 'storyboard-browser-header';
-  const title = document.createElement('h2');
-  title.textContent = state.currentPhase === 'video_prompts' ? '视频分段检索' : '故事板检索';
-  const search = document.createElement('input');
-  search.className = 'storyboard-search';
-  search.type = 'search';
-  search.placeholder = '搜索剧情、角色、场景';
-  search.value = state.storyboardSearch;
-  search.addEventListener('input', () => {
-    state.storyboardSearch = search.value;
-    renderStoryboardOverview(container);
-  });
-  header.append(title, search);
-
-  const query = state.storyboardSearch.trim().toLowerCase();
-  const filtered = boards.filter(([, board]) => {
-    if (!query) return true;
-    return [
-      board.script_title || '',
-      board.script_segment || '',
-      board.scene_location || '',
-      ...(board.characters_in_scene || []),
-    ].join(' ').toLowerCase().includes(query);
-  });
-
-  const columns = document.createElement('div');
-  columns.className = 'storyboard-columns';
-  const byEpisode = {};
-  for (const [key, board] of filtered) {
-    const ep = board.episode || 1;
-    if (!byEpisode[ep]) byEpisode[ep] = [];
-    byEpisode[ep].push({key, board});
+  const ver = state.activeBoardVersion;
+  const scenes = ver ? (p.storyboards?.[ver] || {}) : {};
+  if (Object.keys(scenes).length === 0) {
+    container.innerHTML = `<div class="empty-state">${ver ? `版本 ${ver} 暂无场景` : '暂无故事板数据'}</div>`;
+    return;
   }
 
-  for (const ep of Object.keys(byEpisode).sort((a,b) => Number(a) - Number(b))) {
-    const column = document.createElement('section');
-    column.className = 'storyboard-column';
-    const label = document.createElement('div');
-    label.className = 'storyboard-column-title';
-    label.textContent = `第 ${ep} 集`;
-    column.appendChild(label);
-    for (const {key, board} of byEpisode[ep]) {
-      column.appendChild(createStoryboardOverviewCard(key, board));
+  let html = '<div class="scene-thumb-grid">';
+  for (const [key, scene] of Object.entries(scenes)) {
+    if (!scene || typeof scene !== 'object') continue;
+    const status = scene.status || 'needed';
+    const isCompleted = status === 'completed';
+    const isSubmitted = status === 'submitted';
+    const vidParts = scene.video_parts || [];
+    const vidDone = vidParts.filter(vp => vp.video_status === 'completed').length;
+    const ep = scene.episode || 1;
+
+    let thumbHtml;
+    if (isCompleted) {
+      thumbHtml = `<div class="stc-thumb"><img src="/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=storyboards/${key}/${key}.png" onerror="this.parentElement.innerHTML='板图'"></div>`;
+    } else if (isSubmitted) {
+      thumbHtml = `<div class="stc-thumb"><div class="spinner"></div></div>`;
+    } else {
+      thumbHtml = `<div class="stc-thumb">未生成</div>`;
     }
-    columns.appendChild(column);
-  }
 
-  if (filtered.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'empty-state';
-    empty.textContent = '没有匹配的故事板条目';
-    columns.appendChild(empty);
+    const promptPreview = (scene.draft_prompt || '').substring(0, 50);
+    const statusLabel = state.currentPhase === 'video_prompts'
+      ? `板图: ${status} · 视频: ${vidDone}/${vidParts.length}`
+      : `板图: ${status}`;
+
+    html += `<div class="scene-thumb-card" onclick="selectScene('${key.replace(/'/g,"\\'")}')">
+      ${thumbHtml}
+      <div class="stc-body">
+        <div class="stc-name">${scene.script_title || key}<span class="stc-ep">第${ep}集</span></div>
+        <div class="stc-status">${statusLabel}</div>
+        ${promptPreview ? `<div class="stc-prompt">${promptPreview}...</div>` : ''}
+      </div>
+    </div>`;
   }
-  wrap.append(header, columns);
-  container.replaceChildren(wrap);
+  html += '</div>';
+  container.innerHTML = html;
 }
 
-function createStoryboardOverviewCard(key, board) {
-  const target = state.currentPhase === 'video_prompts'
-    ? getStoryboardTarget(board, state.videoPromptMode, state.storyboardPage)
-    : getStoryboardTarget(board, state.storyboardPromptMode, state.storyboardPage);
-  const card = document.createElement('button');
-  card.type = 'button';
-  card.className = 'storyboard-overview-card';
-  card.addEventListener('click', () => {
-    state.selectedScene = key;
-    renderMainArea();
-  });
+function selectScene(key) { state.selectedScene = key; renderMainArea(); }
+function selectAsset(name) { state.selectedScene = name; renderMainArea(); }
 
-  const title = document.createElement('h3');
-  title.textContent = board.script_title || key;
-  const meta = document.createElement('div');
-  meta.className = 'storyboard-overview-meta';
-  meta.appendChild(createStatusBadge(target.board_status, '板'));
-  if (board.scene_location) {
-    const scene = document.createElement('span');
-    scene.className = 'status-badge';
-    scene.textContent = board.scene_location;
-    meta.appendChild(scene);
-  }
-  const chars = (board.characters_in_scene || []).slice(0, 3);
-  for (const char of chars) {
-    const badge = document.createElement('span');
-    badge.className = 'status-badge';
-    badge.textContent = char;
-    meta.appendChild(badge);
-  }
-  if (state.currentPhase === 'video_prompts') {
-    const parts = target.video_parts || [];
-    const done = parts.filter(p => p.video_status === 'completed').length;
-    const badge = document.createElement('span');
-    badge.className = `status-badge ${parts.length > 0 && done === parts.length ? 'done' : ''}`;
-    badge.textContent = `视频 ${done}/${parts.length}`;
-    meta.appendChild(badge);
-  }
-
-  const summary = document.createElement('div');
-  summary.className = 'storyboard-overview-summary';
-  summary.textContent = summarizeScript(board.script_segment || '', 110);
-  card.append(title, meta, summary);
-  return card;
-}
-
-function summarizeScript(text, maxLen = 80) {
-  const cleaned = text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!cleaned) return '暂无剧情摘要';
-  return cleaned.length > maxLen ? cleaned.slice(0, maxLen - 1) + '…' : cleaned;
-}
-
-function renderTemplateEditor(container) {
-  const TYPES = [
-    { key: 'character', label: '角色' },
-    { key: 'scene', label: '场景' },
-    { key: 'prop', label: '道具' },
-    { key: 'storyboard', label: '故事板' },
-    { key: 'storyboard_v2', label: '故事板 v2' },
-    { key: 'video', label: '视频' },
-    { key: 'video_v2', label: '视频 v2' },
-  ];
-
-  const wrap = document.createElement('div');
-  wrap.className = 'template-editor-wrap';
-  const title = document.createElement('h2');
-  title.textContent = '提示词模板';
-  const select = document.createElement('select');
-  select.className = 'template-type-select';
-  select.id = 'tmpl-type-select';
-  for (const type of TYPES) {
-    const option = document.createElement('option');
-    option.value = type.key;
-    option.textContent = type.label;
-    option.selected = state.templateType === type.key;
-    select.appendChild(option);
-  }
-  const textarea = document.createElement('textarea');
-  textarea.className = 'template-textarea';
-  textarea.id = 'tmpl-textarea';
-  textarea.placeholder = '加载中...';
-  const actions = document.createElement('div');
-  actions.className = 'template-actions';
-  const reset = document.createElement('button');
-  reset.type = 'button';
-  reset.className = 'btn btn-secondary';
-  reset.id = 'tmpl-reset-btn';
-  reset.textContent = '重置默认';
-  const save = document.createElement('button');
-  save.type = 'button';
-  save.className = 'btn btn-primary';
-  save.id = 'tmpl-save-btn';
-  save.textContent = '保存';
-  actions.append(reset, save);
-  const toast = document.createElement('div');
-  toast.id = 'tmpl-toast';
-  toast.className = 'template-toast';
-  wrap.append(title, select, textarea, actions, toast);
-  container.replaceChildren(wrap);
-
-  const selectEl = document.getElementById('tmpl-type-select');
-  const textareaEl = document.getElementById('tmpl-textarea');
-  const resetBtn = document.getElementById('tmpl-reset-btn');
-  const saveBtn = document.getElementById('tmpl-save-btn');
-  const toastEl = document.getElementById('tmpl-toast');
-
-  // load templates from API
-  async function loadTemplates() {
-    try {
-      const resp = await fetch(`/api/project/prompt-templates?${projectPathParam()}`);
-      if (!resp.ok) throw new Error('加载失败');
-      state.templateCache = await resp.json();
-      textareaEl.value = state.templateCache[state.templateType] || '';
-      textareaEl.placeholder = '（无内容）';
-    } catch (e) {
-      textareaEl.value = '';
-      textareaEl.placeholder = '加载失败';
-    }
-  }
-
-  selectEl.addEventListener('change', () => {
-    state.templateType = selectEl.value;
-    textareaEl.value = state.templateCache ? (state.templateCache[state.templateType] || '') : '';
-  });
-
-  saveBtn.addEventListener('click', async () => {
-    if (!state.templateCache) return;
-    state.templateCache[state.templateType] = textareaEl.value;
-    try {
-      const resp = await fetch(`/api/project/prompt-templates?${projectPathParam()}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [state.templateType]: textareaEl.value }),
-      });
-      if (!resp.ok) throw new Error('保存失败');
-      toastEl.textContent = '已保存';
-      toastEl.style.display = '';
-      setTimeout(() => { toastEl.style.display = 'none'; }, 2000);
-    } catch (e) {
-      showError('保存失败：' + e.message);
-    }
-  });
-
-  resetBtn.addEventListener('click', async () => {
-    const confirmed = await confirmAction({
-      title: '重置模板',
-      message: '当前模板内容会被默认模板覆盖。此操作不会影响已经生成的提示词草稿。',
-      confirmLabel: '重置默认',
-    });
-    if (!confirmed) return;
-    try {
-      const resp = await fetch(`/api/project/prompt-templates?${projectPathParam()}&defaults=true`);
-      if (!resp.ok) throw new Error('获取默认失败');
-      const defaults = await resp.json();
-      textareaEl.value = defaults[state.templateType] || '';
-      state.templateCache[state.templateType] = textareaEl.value;
-      // also save the reset value
-      const putResp = await fetch(`/api/project/prompt-templates?${projectPathParam()}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [state.templateType]: textareaEl.value }),
-      });
-      if (!putResp.ok) throw new Error('写入失败');
-      toastEl.textContent = '已重置为默认';
-      toastEl.style.display = '';
-      setTimeout(() => { toastEl.style.display = 'none'; }, 2000);
-    } catch (e) {
-      showError('重置失败：' + e.message);
-    }
-  });
-
-  loadTemplates();
-}
-
-// ── 阶段进度条 (#3) ──
+// ── 阶段进度条 ──
 function updateStageProgress() {
   const p = state.pipeline;
   if (!p) return;
-
   const charTotal = Object.keys(p.assets?.characters || {}).length;
   const charDone = Object.values(p.assets?.characters || {}).filter(v => v.status === 'completed').length;
   const sceneTotal = Object.keys(p.assets?.scenes || {}).length;
   const sceneDone = Object.values(p.assets?.scenes || {}).filter(v => v.status === 'completed').length;
-  let boardTotal = 0, boardDone = 0;
+
+  // 故事板进度：基于当前激活版本（过滤掉非对象值，防止旧格式迁移产生的null）
+  const activeScenes = state.activeBoardVersion
+    ? Object.values(p.storyboards?.[state.activeBoardVersion] || {}).filter(s => s && typeof s === 'object')
+    : [];
+  const boardTotal = activeScenes.length;
+  const boardDone = activeScenes.filter(s => s.status === 'completed').length;
+
   let vidTotal = 0, vidDone = 0;
-  for (const board of Object.values(p.storyboards || {})) {
-    if (state.storyboardPromptMode === 'v2') {
-      const pages = getStoryboardPages(board);
-      boardTotal += pages.length;
-      boardDone += pages.filter(page => page.board_status === 'completed').length;
-    } else {
-      const v1 = getStoryboardTarget(board, 'v1');
-      boardTotal++;
-      if ((v1.board_status || board.board_status) === 'completed') boardDone++;
+  for (const scene of activeScenes) {
+    for (const vp of (scene.video_parts || [])) {
+      vidTotal++;
+      if (vp.video_status === 'completed') vidDone++;
     }
-    const videoTarget = state.videoPromptMode === 'v2'
-      ? getStoryboardPages(board).find(page => page.page === state.storyboardPage) || getStoryboardPages(board)[0] || {}
-      : getStoryboardTarget(board, 'v1');
-    for (const vp of videoTarget.video_parts || []) { vidTotal++; if (vp.video_status === 'completed') vidDone++; }
   }
 
   const stages = [
@@ -1202,31 +730,19 @@ function updateStageProgress() {
     { label: `故事板 ${boardDone}/${boardTotal}`, done: boardDone, total: boardTotal, phase: 'storyboards' },
     { label: `视频 ${vidDone}/${vidTotal || '-'}`, done: vidDone, total: vidTotal, phase: 'video_prompts' },
   ];
-
   const pipeline = document.getElementById('stage-pipeline');
-  pipeline.replaceChildren();
-  stages.forEach((s, i) => {
+  pipeline.innerHTML = stages.map((s, i) => {
     const cls = s.total > 0 && s.done === s.total ? 'done' : (state.currentPhase === s.phase ? 'active' : '');
-    const node = document.createElement('span');
-    node.className = `stage-node ${cls}`;
-    node.textContent = s.label;
-    pipeline.appendChild(node);
-    if (i < stages.length - 1) {
-      const arrow = document.createElement('span');
-      arrow.className = 'stage-arrow';
-      arrow.textContent = '→';
-      pipeline.appendChild(arrow);
-    }
-  });
-
-  // 总体进度条
+    const arrow = i < stages.length - 1 ? '<span class="stage-arrow">\u2192</span>' : '';
+    return `<span class="stage-node ${cls}">${s.label}</span>${arrow}`;
+  }).join('');
   const totalAll = charTotal + sceneTotal + boardTotal + vidTotal;
   const doneAll = charDone + sceneDone + boardDone + vidDone;
   const pct = totalAll > 0 ? Math.round(doneAll / totalAll * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
 }
 
-// ── 卡片图片显示 (#2) ──
+// ── 资产网格 ──
 function renderAssetGrid(container) {
   const p = state.pipeline;
   const isChar = state.currentPhase === 'characters';
@@ -1234,73 +750,59 @@ function renderAssetGrid(container) {
     ? p.assets?.characters || {}
     : {...(p.assets?.scenes || {}), ...(p.assets?.props || {})};
   const category = isChar ? 'characters' : 'scenes_props';
-
-  const grid = document.createElement('div');
-  grid.className = 'asset-grid';
+  let html = `<div class="asset-grid">`;
   for (const [name, info] of Object.entries(assets)) {
     const seedPreview = (info.seed || '').split('\n').slice(0,3).join(' ').substring(0, 60);
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'asset-card' + (info.status === 'failed' ? ' failed' : '');
-    card.addEventListener('click', () => selectAsset(name));
-
-    const thumb = document.createElement('div');
-    thumb.className = 'card-thumb';
-    if (info.status === 'completed') {
-      thumb.appendChild(createAssetImage(`${category}/${name}/${name}.png`));
-    } else if (info.status === 'submitted') {
-      const spinner = document.createElement('div');
-      spinner.className = 'spinner';
-      thumb.appendChild(spinner);
+    const assetStatus = info.status || 'needed';
+    const failedClass = assetStatus === 'failed' ? ' failed' : '';
+    let thumbHtml;
+    if (assetStatus === 'completed') {
+      const fileDir = (category === 'scenes' || category === 'props') ? 'scenes_props' : category;
+      thumbHtml = `<div class="card-thumb"><img src="/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${fileDir}/${encodeURIComponent(name)}/${encodeURIComponent(name)}.png" onerror="this.parentElement.innerHTML='<i data-lucide=image class=lucide-lg></i>';lucide.createIcons()"></div>`;
+    } else if (assetStatus === 'submitted') {
+      thumbHtml = `<div class="card-thumb"><div class="spinner"></div></div>`;
     } else {
-      thumb.appendChild(createIcon('image', 'lucide-lg'));
+      thumbHtml = `<div class="card-thumb"><i data-lucide="image" class="lucide-lg"></i></div>`;
     }
-
-    const cardName = document.createElement('div');
-    cardName.className = 'card-name';
-    cardName.textContent = name;
-    const cardSeed = document.createElement('div');
-    cardSeed.className = 'card-seed';
-    cardSeed.textContent = seedPreview;
-    const cardStatus = document.createElement('div');
-    cardStatus.className = 'card-status';
-    cardStatus.appendChild(createStatusBadge(info.status));
-    card.append(thumb, cardName, cardSeed, cardStatus);
-    grid.appendChild(card);
+    html += `<div class="asset-card${failedClass}" onclick="selectAsset('${name.replace(/'/g,"\\'")}')">
+      ${thumbHtml}
+      <div class="card-name">${name}</div>
+      <div class="card-seed">${seedPreview}</div>
+      <div class="card-status"><span class="status-badge ${statusClass(assetStatus)}">${statusIcon(assetStatus)} ${assetStatus}</span></div>
+    </div>`;
   }
-  container.replaceChildren(grid);
+  html += `</div>`;
+  container.innerHTML = html;
 }
 
-// ── 批量工具栏按钮状态 (#1) ──
 function updateToolbarButtons() {
   const items = getPhaseItems();
   const needGen = items.filter(i => !i.draft_prompt && i.status === 'needed');
-  const canSubmit = items.filter(i => i.draft_prompt && i.status === 'needed');
+  const canSubmit = items.filter(i => i.draft_prompt && (i.status === 'needed' || i.status === 'drafted'));
   const failed = items.filter(i => i.status === 'failed');
-
   document.getElementById('btn-batch-gen').disabled = state.batchRunning || needGen.length === 0;
   document.getElementById('btn-batch-submit').disabled = state.batchRunning || canSubmit.length === 0;
   document.getElementById('btn-batch-retry').disabled = state.batchRunning || failed.length === 0;
-
   const label = state.currentPhase === 'characters' ? '角色' : '场景';
   document.getElementById('toolbar-label').textContent = `${label}批量操作`;
 }
 
 function getPhaseItems() {
   const p = state.pipeline;
+  function enrich(name, info, type) {
+    return {name, seed: info.seed || '', _type: type, status: info.status || 'needed', draft_prompt: info.draft_prompt || ''};
+  }
   if (state.currentPhase === 'characters') {
-    return Object.entries(p.assets?.characters || {}).map(([name, info]) => ({name, ...info, _type: 'character'}));
+    return Object.entries(p.assets?.characters || {}).map(([name, info]) => enrich(name, info, 'character'));
   } else {
-    const scenes = Object.entries(p.assets?.scenes || {}).map(([name, info]) => ({name, ...info, _type: 'scene'}));
-    const props = Object.entries(p.assets?.props || {}).map(([name, info]) => ({name, ...info, _type: 'prop'}));
+    const scenes = Object.entries(p.assets?.scenes || {}).map(([name, info]) => enrich(name, info, 'scene'));
+    const props = Object.entries(p.assets?.props || {}).map(([name, info]) => enrich(name, info, 'prop'));
     return [...scenes, ...props];
   }
 }
 
-// ── 批量操作逻辑 (#1) ──
 async function batchGeneratePrompts() {
   if (state.batchRunning) return;
-  if (!await ensureRequiredApiKey('idealab')) return;
   const items = getPhaseItems().filter(i => !i.draft_prompt && i.status === 'needed');
   if (items.length === 0) return;
   state.batchRunning = true;
@@ -1309,11 +811,10 @@ async function batchGeneratePrompts() {
   for (const item of items) {
     progress.textContent = `生成提示词 ${ok + fail + 1}/${items.length}: ${item.name}`;
     try {
-      const type = item._type === 'character' ? 'character' : (item._type === 'prop' ? 'prop' : 'scene');
-      const seed = item.seed || '';
+      const type = item._type;
       const resp = await fetch('/api/prompts/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type, project_path: state.projectPath, name: item.name, appearance_seed: seed})
+        body: JSON.stringify({type, project_path: state.projectPath, name: item.name, appearance_seed: item.seed})
       });
       if (resp.ok) { ok++; } else { fail++; const e = await resp.json().catch(() => ({})); showToast(`${item.name}: ${e.detail || '生成失败'}`, 'error'); }
     } catch(e) { fail++; showToast(`${item.name}: 网络错误`, 'error'); }
@@ -1327,8 +828,7 @@ async function batchGeneratePrompts() {
 
 async function batchSubmitAll() {
   if (state.batchRunning) return;
-  if (!await ensureRequiredApiKey('vidu')) return;
-  const items = getPhaseItems().filter(i => i.draft_prompt && i.status === 'needed');
+  const items = getPhaseItems().filter(i => i.draft_prompt && (i.status === 'needed' || i.status === 'drafted'));
   if (items.length === 0) return;
   state.batchRunning = true;
   const progress = document.getElementById('batch-progress');
@@ -1336,10 +836,9 @@ async function batchSubmitAll() {
   for (const item of items) {
     progress.textContent = `提交 ${ok + fail + 1}/${items.length}: ${item.name}`;
     try {
-      const type = item._type;
       const resp = await fetch('/api/tasks/submit', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type, project_path: state.projectPath, name: item.name, prompt: item.draft_prompt, image_paths: []})
+        body: JSON.stringify({type: item._type, project_path: state.projectPath, name: item.name, prompt: item.draft_prompt, image_paths: []})
       });
       if (resp.ok) { ok++; } else { fail++; const e = await resp.json().catch(() => ({})); showToast(`${item.name}: ${e.detail || '提交失败'}`, 'error'); }
     } catch(e) { fail++; showToast(`${item.name}: 网络错误`, 'error'); }
@@ -1353,7 +852,6 @@ async function batchSubmitAll() {
 
 async function batchRetryFailed() {
   if (state.batchRunning) return;
-  if (!await ensureRequiredApiKey('vidu')) return;
   const items = getPhaseItems().filter(i => i.status === 'failed');
   if (items.length === 0) return;
   state.batchRunning = true;
@@ -1364,24 +862,18 @@ async function batchRetryFailed() {
     if (!prompt) { skip++; continue; }
     progress.textContent = `重试 ${ok + fail + 1}/${items.length}: ${item.name}`;
     try {
-      const type = item._type;
       const resp = await fetch('/api/tasks/submit', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type, project_path: state.projectPath, name: item.name, prompt, image_paths: []})
+        body: JSON.stringify({type: item._type, project_path: state.projectPath, name: item.name, prompt, image_paths: []})
       });
-      if (resp.ok) { ok++; } else { fail++; const e = await resp.json().catch(() => ({})); showToast(`${item.name}: ${e.detail || '重试失败'}`, 'error'); }
-    } catch(e) { fail++; showToast(`${item.name}: 网络错误`, 'error'); }
+      if (resp.ok) { ok++; } else { fail++; }
+    } catch(e) { fail++; }
     await refreshStatus();
   }
   progress.textContent = `完成 ${ok + fail + skip}/${items.length}`;
   state.batchRunning = false;
   updateToolbarButtons();
   showToast(`重试完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}${skip > 0 ? `，${skip} 跳过` : ''}`, fail > 0 ? 'error' : 'success');
-}
-
-function selectAsset(name) {
-  state.selectedScene = name;
-  renderMainArea();
 }
 
 function statusClass(s) {
@@ -1393,729 +885,425 @@ function statusClass(s) {
 function statusIcon(s) {
   const icons = {
     completed: '<i data-lucide="check" class="lucide-sm"></i>',
-    submitted: '<i data-lucide="loader" class="lucide-sm spin-icon"></i>',
+    submitted: '<i data-lucide="loader" class="lucide-sm" style="animation:spin 0.8s linear infinite"></i>',
     failed: '<i data-lucide="x" class="lucide-sm"></i>',
     needed: '<i data-lucide="circle" class="lucide-sm"></i>',
-    pending: '<i data-lucide="circle" class="lucide-sm"></i>',
   };
   return icons[s] || '<i data-lucide="minus" class="lucide-sm"></i>';
 }
 
+// ── 详情页 ──
 function renderDetail(key) {
   const p = state.pipeline;
   const content = document.getElementById('detail-panel');
-
   if (state.currentPhase === 'characters' || state.currentPhase === 'scenes_props') {
-    const category = state.currentPhase === 'characters' ? 'characters' : 'scenes_props';
     const assets = state.currentPhase === 'characters'
       ? p.assets?.characters : {...p.assets?.scenes, ...p.assets?.props};
     const assetType = state.currentPhase === 'characters' ? 'characters'
       : (p.assets?.scenes?.[key] !== undefined ? 'scenes' : 'props');
     renderAssetDetail(content, key, assetType, assets[key] || {});
   } else if (state.currentPhase === 'storyboards') {
-    renderStoryboardDetail(content, key, p.storyboards?.[key] || {});
+    renderStoryboardDetail(content, key);
   } else {
-    renderVideoDetail(content, key, p.storyboards?.[key] || {});
+    renderVideoDetail(content, key);
   }
 }
 
 function renderAssetDetail(container, name, category, info) {
-  container.replaceChildren();
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.className = 'back-link';
-  back.textContent = '← 返回列表';
-  back.addEventListener('click', () => { state.selectedScene = null; renderMainArea(); });
-  const title = document.createElement('h2');
-  title.textContent = name;
-  container.append(back, title);
-
-  if (info.error) {
-    container.appendChild(createErrorBanner(info.error));
-  }
-
-  if (info.status === 'completed') {
+  const status = info.status || 'needed';
+  const isCompleted = status === 'completed';
+  container.innerHTML = `<span class="back-link" onclick="state.selectedScene=null;renderMainArea()">&larr; 返回列表</span>
+    <h2>${name}</h2>`;
+  if (isCompleted) {
     const fileDir = (category === 'scenes' || category === 'props') ? 'scenes_props' : category;
-    container.appendChild(createImagePreview(`${fileDir}/${name}/${name}.png`));
+    const imgUrl = `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${fileDir}/${encodeURIComponent(name)}/${encodeURIComponent(name)}.png`;
+    const imgWrap = document.createElement('div');
+    imgWrap.style = 'position:relative;display:inline-block;';
+    imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none'">
+      <button onclick="openLightbox('${imgUrl}')" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;color:#fff;font-size:13px;">&#x26F6; 放大</button>`;
+    container.appendChild(imgWrap);
   }
-
   const section = document.createElement('div');
   section.className = 'stage-section';
-  const heading = document.createElement('h3');
-  heading.textContent = '提示词草稿';
-  const textarea = document.createElement('textarea');
-  textarea.className = 'prompt-editor';
-  textarea.id = 'asset-prompt';
-  textarea.value = info.draft_prompt || info.seed || '';
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  const generateBtn = document.createElement('button');
-  generateBtn.type = 'button';
-  generateBtn.className = 'btn btn-secondary';
-  generateBtn.textContent = '生成提示词';
-  generateBtn.addEventListener('click', () => generateAssetPrompt(name, category, generateBtn));
-  const submitBtn = document.createElement('button');
-  submitBtn.type = 'button';
-  submitBtn.className = 'btn btn-primary';
-  submitBtn.textContent = '提交生成';
-  submitBtn.addEventListener('click', () => submitAsset(name, category));
-  row.append(generateBtn, submitBtn);
-  if (info.status === 'failed') {
-    const retryBtn = document.createElement('button');
-    retryBtn.type = 'button';
-    retryBtn.className = 'btn btn-danger';
-    retryBtn.textContent = '重试';
-    retryBtn.addEventListener('click', () => submitAsset(name, category));
-    row.appendChild(retryBtn);
-  }
-  section.append(heading, textarea, row);
+  section.innerHTML = `<h3>提示词草稿</h3>
+    <textarea class="prompt-editor" id="asset-prompt">${info.draft_prompt || info.seed || ''}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="generateAssetPrompt('${name.replace(/'/g,"\\'")}','${category}',this)">生成提示词</button>
+      <button class="btn btn-primary" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}')">提交生成</button>
+      ${status === 'failed' ? `<button class="btn btn-danger" onclick="submitAsset('${name.replace(/'/g,"\\'")}','${category}')">重试</button>` : ''}
+    </div>`;
   container.appendChild(section);
 }
 
-function renderStoryboardDetail(container, key, board) {
-  container.replaceChildren();
-  const page = getCurrentPageForBoard(board);
-  const target = getStoryboardTarget(board, state.storyboardPromptMode, page);
-  const title = document.createElement('h2');
-  title.textContent = board.script_title || key;
-  container.appendChild(title);
+function renderStoryboardDetail(container, key) {
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(key);
+  // 元信息从各版本任取一个（scene_location/characters等在各版本中一致）
+  const anyScene = scene || Object.values(state.pipeline?.storyboards || {}).filter(v => v && typeof v === 'object').map(v => v[key]).find(Boolean) || {};
 
-  if (target.board_error || board.board_error) {
-    container.appendChild(createErrorBanner(target.board_error || board.board_error));
-  }
+  container.innerHTML = `<span class="back-link" onclick="state.selectedScene=null;renderMainArea()">&larr; 返回总览</span>
+    <h2>${anyScene.script_title || key} <span class="ver-badge">${ver}</span></h2>`;
 
-  // 智能阻塞提示 (#4)
   const dep = getDependencyInfo();
   if (dep.storyboardBlocked) {
-    const block = document.createElement('div');
-    block.className = 'block-banner';
-    block.textContent = `无法提交故事板：${dep.storyboardReason}`;
-    container.appendChild(block);
+    container.innerHTML += `<div class="block-banner">无法提交故事板：${dep.storyboardReason}</div>`;
   }
 
-  if ((target.board_status || board.board_status) === 'completed') {
-    container.appendChild(createImagePreview(storyboardImagePath(key, state.storyboardPromptMode, page)));
+  if (!scene) {
+    container.innerHTML += `<div class="empty-state">版本 ${ver} 无此场景</div>`;
+    return;
   }
 
-  const modeSection = document.createElement('div');
-  modeSection.className = 'stage-section';
-  modeSection.appendChild(createModeSelector({
-    label: '生成模式',
-    stateKey: 'storyboardPromptMode',
-    onChange: () => { state.storyboardPage = 1; renderStoryboardDetail(container, key, board); },
-  }));
-  if (state.storyboardPromptMode === 'v2') {
-    modeSection.appendChild(createStoryboardPageSelector(board, () => renderStoryboardDetail(container, key, board)));
+  const boardStatus = scene.status || 'needed';
+  if (boardStatus === 'completed') {
+    const imgUrl = `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=storyboards/${key}/${key}.png`;
+    const imgWrap = document.createElement('div');
+    imgWrap.style = 'position:relative;display:inline-block;';
+    imgWrap.innerHTML = `<img class="img-preview" src="${imgUrl}" onerror="this.style.display='none'">
+      <button onclick="openLightbox('${imgUrl}')" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;color:#fff;font-size:13px;">&#x26F6; 放大</button>`;
+    container.appendChild(imgWrap);
   }
-  container.appendChild(modeSection);
-
-  container.appendChild(createStoryboardInputSection(key, board, target));
 
   const section = document.createElement('div');
   section.className = 'stage-section';
-  const heading = document.createElement('h3');
-  heading.textContent = state.storyboardPromptMode === 'v2' ? `故事板 v2 第 ${page} 页提示词草稿` : '故事板提示词草稿';
-  const textarea = document.createElement('textarea');
-  textarea.className = 'prompt-editor';
-  textarea.id = 'board-prompt';
-  textarea.value = target.draft_prompt || board.draft_prompt || '';
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  const generateBtn = document.createElement('button');
-  generateBtn.type = 'button';
-  generateBtn.className = 'btn btn-secondary';
-  generateBtn.textContent = '生成提示词';
-  generateBtn.disabled = dep.storyboardBlocked;
-  generateBtn.addEventListener('click', () => generateBoardPrompt(key));
-  const submitBtn = document.createElement('button');
-  submitBtn.type = 'button';
-  submitBtn.className = 'btn btn-primary';
-  submitBtn.textContent = state.storyboardPromptMode === 'v2' ? `提交第 ${page} 页` : '提交故事板';
-  submitBtn.disabled = dep.storyboardBlocked;
-  submitBtn.addEventListener('click', () => submitBoard(key));
-  row.append(generateBtn, submitBtn);
-  section.append(heading, textarea, row);
+  const blockedAttr = dep.storyboardBlocked ? ' disabled' : '';
+  section.innerHTML = `<h3>故事板提示词草稿 (${ver})</h3>
+    <textarea class="prompt-editor" id="board-prompt">${scene.draft_prompt || ''}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="generateBoardPrompt('${key}')"${blockedAttr}>生成提示词</button>
+      <button class="btn btn-primary" onclick="submitBoard('${key}')"${blockedAttr}>提交故事板</button>
+    </div>`;
   container.appendChild(section);
 }
 
-function createStoryboardPageSelector(board, onChange) {
-  const row = document.createElement('div');
-  row.className = 'mode-row';
-  const text = document.createElement('span');
-  text.className = 'mode-label';
-  text.textContent = '分镜页';
-  const control = document.createElement('div');
-  control.className = 'segmented-control';
-  for (const page of getStoryboardPages(board)) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = page.page === state.storyboardPage ? 'active' : '';
-    btn.textContent = `P${page.page}`;
-    btn.setAttribute('aria-pressed', page.page === state.storyboardPage ? 'true' : 'false');
-    btn.addEventListener('click', () => {
-      state.storyboardPage = page.page;
-      onChange();
-    });
-    control.appendChild(btn);
-  }
-  row.append(text, control);
-  return row;
-}
+function renderVideoDetail(container, key) {
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(key);
+  const anyScene = scene || Object.values(state.pipeline?.storyboards || {}).filter(v => v && typeof v === 'object').map(v => v[key]).find(Boolean) || {};
 
-function createStoryboardInputSection(sceneKey, board, target = board) {
-  const section = document.createElement('div');
-  section.className = 'stage-section';
-  const heading = document.createElement('h3');
-  heading.textContent = '剧情输入';
+  container.innerHTML = `<span class="back-link" onclick="state.selectedScene=null;renderMainArea()">&larr; 返回总览</span>
+    <h2>${anyScene.script_title || key} — 视频 <span class="ver-badge">${ver}</span></h2>`;
 
-  const grid = document.createElement('div');
-  grid.className = 'story-input-grid';
-  grid.appendChild(createTextAreaField({
-    id: 'story-summary-input',
-    label: '剧情摘要',
-    value: board.story_summary || summarizeScript(board.script_segment || '', 140),
-  }));
-  grid.appendChild(createTextAreaField({
-    id: 'conflict-summary-input',
-    label: '本场冲突 / 主题',
-    value: board.conflict_summary || '',
-  }));
-
-  const scriptField = document.createElement('div');
-  scriptField.className = 'story-input-field full';
-  const scriptLabel = document.createElement('label');
-  scriptLabel.textContent = '剧本原文';
-  const scriptText = document.createElement('div');
-  scriptText.className = 'script-readonly';
-  scriptText.textContent = board.script_segment || '暂无剧本原文';
-  scriptField.append(scriptLabel, scriptText);
-
-  const planField = createTextAreaField({
-    id: 'shot-plan-input',
-    label: '分镜计划 JSON',
-    value: formatShotPlan(target.shot_plan || board.shot_plan),
-    extraClass: 'full',
-    textareaClass: 'shot-plan-editor',
-  });
-
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'btn btn-secondary';
-  saveBtn.textContent = '保存输入';
-  saveBtn.addEventListener('click', () => saveStoryboardInput(sceneKey));
-  row.appendChild(saveBtn);
-
-  grid.append(scriptField, planField);
-  section.append(heading, grid, row);
-  return section;
-}
-
-function createTextAreaField({id, label, value, extraClass = '', textareaClass = ''}) {
-  const field = document.createElement('div');
-  field.className = `story-input-field ${extraClass}`.trim();
-  const labelEl = document.createElement('label');
-  labelEl.setAttribute('for', id);
-  labelEl.textContent = label;
-  const textarea = document.createElement('textarea');
-  textarea.id = id;
-  textarea.className = `prompt-editor ${textareaClass}`.trim();
-  textarea.value = value || '';
-  field.append(labelEl, textarea);
-  return field;
-}
-
-function formatShotPlan(plan) {
-  if (!plan || Object.keys(plan).length === 0) return '';
-  try {
-    return JSON.stringify(plan, null, 2);
-  } catch (_) {
-    return '';
-  }
-}
-
-function readShotPlanFromEditor() {
-  const raw = document.getElementById('shot-plan-input')?.value.trim() || '';
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch (_) {
-    showToast('分镜计划 JSON 格式不正确', 'error');
-    return null;
-  }
-}
-
-async function saveStoryboardInput(sceneKey, {silent = false} = {}) {
-  const shotPlan = readShotPlanFromEditor();
-  if (shotPlan === null) return false;
-  const board = state.pipeline?.storyboards?.[sceneKey] || {};
-  const target = getStoryboardTarget(board, state.storyboardPromptMode, state.storyboardPage);
-  try {
-    const resp = await fetch('/api/project/storyboard-input', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        project_path: state.projectPath,
-        scene_key: sceneKey,
-        mode: state.storyboardPromptMode,
-        page: state.storyboardPromptMode === 'v2' ? state.storyboardPage : undefined,
-        output_id: target.id,
-        story_summary: document.getElementById('story-summary-input')?.value || '',
-        conflict_summary: document.getElementById('conflict-summary-input')?.value || '',
-        shot_plan: shotPlan,
-        draft_prompt: document.getElementById('board-prompt')?.value || undefined,
-      })
-    });
-    if (!resp.ok) {
-      const e = await resp.json().catch(() => ({}));
-      showToast('保存失败：' + (e.detail || resp.status), 'error');
-      return false;
-    }
-    await refreshStatus();
-    if (!silent) showToast('故事板输入已保存', 'success');
-    return true;
-  } catch(e) {
-    showToast('保存失败：' + e.message, 'error');
-    return false;
-  }
-}
-
-function renderVideoDetail(container, key, board) {
-  container.replaceChildren();
-  const page = getCurrentPageForBoard(board);
-  const target = getStoryboardTarget(board, state.videoPromptMode, page);
-  const title = document.createElement('h2');
-  title.textContent = state.videoPromptMode === 'v2'
-    ? `${board.script_title || key} — 视频 P${page}`
-    : `${board.script_title || key} — 视频`;
-  container.appendChild(title);
-  container.appendChild(createModeSelector({
-    label: '生成模式',
-    stateKey: 'videoPromptMode',
-    onChange: () => { state.storyboardPage = 1; renderVideoDetail(container, key, board); },
-  }));
-  if (state.videoPromptMode === 'v2') {
-    container.appendChild(createStoryboardPageSelector(board, () => renderVideoDetail(container, key, board)));
-  }
-  if ((target.board_status || board.board_status) !== 'completed') {
-    const block = document.createElement('div');
-    block.className = 'block-banner';
-    block.textContent = state.videoPromptMode === 'v2'
-      ? `v2 第 ${page} 页故事板尚未完成，无法生成视频。`
-      : '故事板尚未完成，无法生成视频。请先完成该场景的故事板。';
-    container.appendChild(block);
+  if (!scene || scene.status !== 'completed') {
+    container.innerHTML += `<div class="block-banner">故事板尚未完成，无法生成视频。请先完成该场景的故事板。</div>`;
     return;
   }
-  const activeTarget = getStoryboardTarget(board, state.videoPromptMode, state.storyboardPage);
-  const parts = activeTarget.video_parts || [];
+
+  const parts = scene.video_parts || [];
   if (parts.length === 0) {
-    const row = document.createElement('div');
-    row.className = 'btn-row';
-    const generateBtn = document.createElement('button');
-    generateBtn.type = 'button';
-    generateBtn.className = 'btn btn-secondary';
-    generateBtn.textContent = state.videoPromptMode === 'v2' ? '生成视频提示词 v2' : '生成视频提示词（AI拆分）';
-    generateBtn.addEventListener('click', () => generateVideoPrompts(key));
-    row.appendChild(generateBtn);
-    container.appendChild(row);
+    const btnDiv = document.createElement('div');
+    btnDiv.className = 'btn-row';
+    btnDiv.innerHTML = `<button class="btn btn-secondary" onclick="generateVideoPrompts('${key}')">生成视频提示词（AI拆分）</button>`;
+    container.appendChild(btnDiv);
     return;
   }
   for (const part of parts) {
+    const vStatus = part.video_status || 'needed';
+    const videoUrl = part.local_path
+      ? `/api/asset-file?project_path=${encodeURIComponent(state.projectPath)}&file_path=${encodeURIComponent(part.local_path)}`
+      : part.video_url || '';
     const card = document.createElement('div');
     card.className = 'video-part-card';
-    const header = document.createElement('div');
-    header.className = 'part-header';
-    header.append(document.createTextNode(`Part ${part.part} [`), createStatusIcon(part.video_status),
-      document.createTextNode(`]${part.duration ? ` ${part.duration}s` : ''}`));
-    card.appendChild(header);
-
-    if (part.video_error) {
-      card.appendChild(createErrorBanner(part.video_error));
-    }
-    if (part.video_download_error) {
-      card.appendChild(createWarnBanner(`本地下载失败：${part.video_download_error}`));
-    }
-
-    const mediaUrl = part.local_path ? assetFileUrl(part.local_path) : part.video_url;
-    if (mediaUrl) {
-      const video = document.createElement('video');
-      video.src = mediaUrl;
-      video.controls = true;
-      video.className = 'video-preview';
-      card.appendChild(video);
-    }
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'prompt-editor video-prompt-editor';
-    textarea.id = `video-prompt-${part.part}`;
-    textarea.value = part.draft_prompt || part.prompt || '';
-    const row = document.createElement('div');
-    row.className = 'btn-row';
-    const submitBtn = document.createElement('button');
-    submitBtn.type = 'button';
-    submitBtn.className = 'btn btn-primary';
-    submitBtn.textContent = '提交视频';
-    submitBtn.addEventListener('click', () => submitVideoPart(key, part.part));
-    row.appendChild(submitBtn);
-    if (mediaUrl) {
-      const downloadLink = document.createElement('a');
-      downloadLink.href = mediaUrl;
-      downloadLink.target = '_blank';
-      downloadLink.rel = 'noopener';
-      downloadLink.className = 'btn btn-secondary';
-      downloadLink.textContent = '下载';
-      row.appendChild(downloadLink);
-    }
-    card.append(textarea, row);
+    card.innerHTML = `
+      <div class="part-header">Part ${part.part} [${statusIcon(vStatus)}]${part.duration ? ` ${part.duration}s` : ''}</div>
+      ${videoUrl ? `<video src="${videoUrl}" controls style="width:100%;max-height:300px;border-radius:8px;margin-bottom:8px;"></video>` : ''}
+      <textarea class="prompt-editor" id="video-prompt-${part.part}" style="min-height:80px">${part.draft_prompt || part.prompt || ''}</textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="submitVideoPart('${key}', ${part.part})">提交视频</button>
+        ${videoUrl ? `<a href="${videoUrl}" target="_blank" class="btn btn-secondary">下载</a>` : ''}
+      </div>`;
     container.appendChild(card);
   }
 }
 
-function createModeSelector({label, stateKey, onChange}) {
-  const row = document.createElement('div');
-  row.className = 'mode-row';
-  const text = document.createElement('span');
-  text.className = 'mode-label';
-  text.textContent = label;
-  const control = document.createElement('div');
-  control.className = 'segmented-control';
-  for (const mode of ['v1', 'v2']) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = state[stateKey] === mode ? 'active' : '';
-    btn.textContent = mode;
-    btn.setAttribute('aria-pressed', state[stateKey] === mode ? 'true' : 'false');
-    btn.addEventListener('click', () => {
-      state[stateKey] = mode;
-      onChange();
-    });
-    control.appendChild(btn);
-  }
-  row.append(text, control);
-  return row;
-}
-
+// ── 单个操作 ──
 async function generateAssetPrompt(name, category, btn) {
   const type = category === 'characters' ? 'character' : (category === 'props' ? 'prop' : 'scene');
   const seed = state.pipeline?.assets?.[category]?.[name]?.seed || '';
-  if (!await ensureRequiredApiKey('idealab')) return;
   if (btn) { btn.disabled = true; btn.textContent = '生成中...'; }
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type, project_path: state.projectPath, name, appearance_seed: seed})
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('生成失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('生成失败：' + (e.detail || resp.status)); return; }
     const data = await resp.json();
     const ta = document.getElementById('asset-prompt');
     if (ta) ta.value = data.prompt;
-  } catch(e) { showToast('生成失败：' + e.message, 'error'); }
+  } catch(e) { alert('生成失败：' + e.message); }
   finally { if (btn) { btn.disabled = false; btn.textContent = '生成提示词'; } }
 }
 
 async function submitAsset(name, category) {
   const prompt = document.getElementById('asset-prompt').value;
-  if (!prompt) { showToast('请先填写或生成提示词', 'error'); return; }
-  if (!await ensureRequiredApiKey('vidu')) return;
+  if (!prompt) { alert('请先填写或生成提示词'); return; }
   const type = category === 'characters' ? 'character' : (category === 'props' ? 'prop' : 'scene');
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type, project_path: state.projectPath, name, prompt, image_paths: []})
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('提交失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
     await refreshStatus();
-  } catch(e) { showToast('提交失败：' + e.message, 'error'); }
+  } catch(e) { alert('提交失败：' + e.message); }
 }
 
 async function generateBoardPrompt(sceneKey) {
-  const saved = await saveStoryboardInput(sceneKey, {silent: true});
-  if (!saved) return;
-  const board = state.pipeline?.storyboards?.[sceneKey] || {};
-  const target = getStoryboardTarget(board, state.storyboardPromptMode, state.storyboardPage);
-  if (!await ensureRequiredApiKey('idealab')) return;
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(sceneKey);
+  if (!scene) return;
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         type: 'storyboard', project_path: state.projectPath, scene_key: sceneKey,
-        page: state.storyboardPromptMode === 'v2' ? state.storyboardPage : undefined,
-        output_id: target.id,
-        characters: board.characters_in_scene || [], scene_location: board.scene_location || '',
-        script_segment: board.script_segment || '',
-        shot_plan: target.shot_plan || board.shot_plan || {},
-        mode: state.storyboardPromptMode,
+        board_version: ver,
+        characters: scene.characters_in_scene || [], scene_location: scene.scene_location || '',
+        script_segment: scene.script_segment || '',
       })
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('生成失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('生成失败：' + (e.detail || resp.status)); return; }
     const data = await resp.json();
-    document.getElementById('board-prompt').value = data.prompt;
-  } catch(e) { showToast('生成失败：' + e.message, 'error'); }
+    const ta = document.getElementById('board-prompt');
+    if (ta) ta.value = data.prompt;
+  } catch(e) { alert('生成失败：' + e.message); }
 }
 
 async function submitBoard(sceneKey) {
   const dep = getDependencyInfo();
-  if (dep.storyboardBlocked) { showToast('前置条件未满足：' + dep.storyboardReason, 'error'); return; }
-  const saved = await saveStoryboardInput(sceneKey, {silent: true});
-  if (!saved) return;
-  if (!await ensureRequiredApiKey('vidu')) return;
+  if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
   const prompt = document.getElementById('board-prompt').value;
-  if (!prompt) { showToast('请先填写或生成提示词', 'error'); return; }
-  const board = state.pipeline?.storyboards?.[sceneKey] || {};
-  const target = getStoryboardTarget(board, state.storyboardPromptMode, state.storyboardPage);
-  if (showReferenceIssues(getStoryboardReferenceIssues(board))) return;
+  if (!prompt) { alert('请先填写或生成提示词'); return; }
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(sceneKey);
+  if (!scene) return;
   const imagePaths = [];
-  for (const char of (board.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-  if (board.scene_location) imagePaths.push(`scenes_props/${board.scene_location}/${board.scene_location}.png`);
+  for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
+  if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'storyboard', project_path: state.projectPath,
-        scene_key: sceneKey, mode: state.storyboardPromptMode,
-        page: state.storyboardPromptMode === 'v2' ? state.storyboardPage : undefined,
-        output_id: target.id,
-        prompt, image_paths: imagePaths})
+        scene_key: sceneKey, prompt, image_paths: imagePaths, board_version: ver,
+        quality: state.versionQuality, resolution: state.versionResolution})
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('提交失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
     await refreshStatus();
-  } catch(e) { showToast('提交失败：' + e.message, 'error'); }
+  } catch(e) { alert('提交失败：' + e.message); }
 }
 
 async function generateVideoPrompts(sceneKey) {
-  const board = state.pipeline?.storyboards?.[sceneKey] || {};
-  const target = getStoryboardTarget(board, state.videoPromptMode, state.storyboardPage);
-  if (!await ensureRequiredApiKey('idealab')) return;
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(sceneKey);
+  if (!scene) return;
   try {
     const resp = await fetch('/api/prompts/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'video', project_path: state.projectPath,
-        page: state.videoPromptMode === 'v2' ? state.storyboardPage : undefined,
-        output_id: target.id,
-        scene_key: sceneKey, script_segment: board.script_segment || '',
-        shot_plan: target.shot_plan || board.shot_plan || {},
-        mode: state.videoPromptMode})
+        scene_key: sceneKey, board_version: ver, script_segment: scene.script_segment || ''})
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('生成失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('生成失败：' + (e.detail || resp.status)); return; }
     await refreshStatus();
-  } catch(e) { showToast('生成失败：' + e.message, 'error'); }
+  } catch(e) { alert('生成失败：' + e.message); }
 }
 
 async function submitVideoPart(sceneKey, partNum) {
   const prompt = document.getElementById(`video-prompt-${partNum}`)?.value || '';
-  if (!prompt) { showToast('请先填写视频提示词', 'error'); return; }
-  if (!await ensureRequiredApiKey('wetoken')) return;
-  if (!await ensureRequiredApiKey('github')) return;
-  const board = state.pipeline?.storyboards?.[sceneKey] || {};
-  const target = getStoryboardTarget(board, state.videoPromptMode, state.storyboardPage);
-  if ((target.board_status || board.board_status) !== 'completed') {
-    showToast('故事板尚未完成，无法提交视频', 'error');
-    return;
-  }
-  if (showReferenceIssues(getStoryboardReferenceIssues(board))) return;
-  const partInfo = (target.video_parts || []).find(p => p.part === partNum);
-  const duration = (partInfo && partInfo.duration) || target.video_duration || board.video_duration || 10;
-  const ratio = target.video_ratio || board.video_ratio || '16:9';
+  if (!prompt) { alert('请先填写视频提示词'); return; }
+  const ver = state.activeBoardVersion;
+  const scene = getActiveScene(sceneKey);
+  if (!scene) return;
+  const partInfo = (scene.video_parts || []).find(p => p.part === partNum);
+  const duration = partInfo?.duration || 10;
   const imagePaths = [];
-  for (const char of (board.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
-  if (board.scene_location) imagePaths.push(`scenes_props/${board.scene_location}/${board.scene_location}.png`);
-  imagePaths.push(storyboardImagePath(sceneKey, state.videoPromptMode, state.storyboardPage));
+  for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
+  if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
+  imagePaths.push(`storyboards/${sceneKey}/${sceneKey}.png`);
   try {
     const resp = await fetch('/api/tasks/submit', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({type: 'video', project_path: state.projectPath,
-        scene_key: sceneKey, mode: state.videoPromptMode,
-        page: state.videoPromptMode === 'v2' ? state.storyboardPage : undefined,
-        output_id: target.id,
-        part: partNum, prompt, image_paths: imagePaths,
-        duration: duration, ratio: ratio})
+        scene_key: sceneKey, part: partNum, prompt, image_paths: imagePaths,
+        duration, board_version: ver})
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      showToast('提交失败：' + (e.detail || resp.status), 'error');
-      return;
-    }
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); alert('提交失败：' + (e.detail || resp.status)); return; }
     await refreshStatus();
-  } catch(e) { showToast('提交失败：' + e.message, 'error'); }
+  } catch(e) { alert('提交失败：' + e.message); }
+}
+
+// ── 批量版本操作 ──
+async function batchGenBoardPrompts() {
+  if (state.batchRunning) return;
+  const dep = getDependencyInfo();
+  if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
+  const ver = state.activeBoardVersion;
+  const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
+  const items = Object.entries(scenes).filter(([, s]) => s && typeof s === 'object' && !s.draft_prompt && s.status === 'needed');
+  if (items.length === 0) { showToast('没有需要生成提示词的场景', 'info'); return; }
+  state.batchRunning = true;
+  renderVersionPanel();
+  let ok = 0, fail = 0;
+  for (const [key, scene] of items) {
+    try {
+      const resp = await fetch('/api/prompts/generate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          type: 'storyboard', project_path: state.projectPath, scene_key: key, board_version: ver,
+          characters: scene.characters_in_scene || [], scene_location: scene.scene_location || '',
+          script_segment: scene.script_segment || '',
+        })
+      });
+      if (resp.ok) { ok++; } else { fail++; }
+    } catch(e) { fail++; }
+  }
+  await refreshStatus();
+  state.batchRunning = false;
+  renderVersionPanel();
+  showToast(`提示词生成完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+}
+
+async function batchSubmitBoards() {
+  if (state.batchRunning) return;
+  const dep = getDependencyInfo();
+  if (dep.storyboardBlocked) { alert('前置条件未满足：' + dep.storyboardReason); return; }
+  const ver = state.activeBoardVersion;
+  const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
+  const items = Object.entries(scenes).filter(([, s]) => s && typeof s === 'object' && s.draft_prompt && (s.status === 'needed' || s.status === 'drafted'));
+  if (items.length === 0) { showToast('没有可提交的故事板', 'info'); return; }
+  state.batchRunning = true;
+  renderVersionPanel();
+  let ok = 0, fail = 0;
+  for (const [key, scene] of items) {
+    const imagePaths = [];
+    for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
+    if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
+    try {
+      const resp = await fetch('/api/tasks/submit', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: 'storyboard', project_path: state.projectPath,
+          scene_key: key, prompt: scene.draft_prompt, image_paths: imagePaths,
+          board_version: ver, quality: state.versionQuality, resolution: state.versionResolution})
+      });
+      if (resp.ok) { ok++; } else { fail++; }
+    } catch(e) { fail++; }
+    await refreshStatus();
+  }
+  state.batchRunning = false;
+  renderVersionPanel();
+  showToast(`板图提交完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
+}
+
+async function batchSubmitVideos() {
+  if (state.batchRunning) return;
+  const ver = state.activeBoardVersion;
+  const scenes = ver ? (state.pipeline?.storyboards?.[ver] || {}) : {};
+  const items = [];
+  for (const [key, scene] of Object.entries(scenes)) {
+    if (!scene || typeof scene !== 'object') continue;
+    if (scene.status !== 'completed') continue;
+    for (const part of (scene.video_parts || [])) {
+      if (part.video_status === 'needed' && (part.draft_prompt || part.prompt)) {
+        const imagePaths = [];
+        for (const char of (scene.characters_in_scene || [])) imagePaths.push(`characters/${char}/${char}.png`);
+        if (scene.scene_location) imagePaths.push(`scenes_props/${scene.scene_location}/${scene.scene_location}.png`);
+        imagePaths.push(`storyboards/${key}/${key}.png`);
+        items.push({key, part, prompt: part.draft_prompt || part.prompt, imagePaths});
+      }
+    }
+  }
+  if (items.length === 0) { showToast('没有可提交的视频', 'info'); return; }
+  state.batchRunning = true;
+  renderVersionPanel();
+  let ok = 0, fail = 0;
+  for (const item of items) {
+    try {
+      const resp = await fetch('/api/tasks/submit', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: 'video', project_path: state.projectPath,
+          scene_key: item.key, part: item.part.part, prompt: item.prompt,
+          image_paths: item.imagePaths, duration: item.part.duration || 10, board_version: ver})
+      });
+      if (resp.ok) { ok++; } else { fail++; }
+    } catch(e) { fail++; }
+    await refreshStatus();
+  }
+  state.batchRunning = false;
+  renderVersionPanel();
+  showToast(`视频提交完毕：${ok} 成功${fail > 0 ? `，${fail} 失败` : ''}`, fail > 0 ? 'error' : 'success');
 }
 
 async function refreshStatus() {
   if (!state.projectPath) return;
-  const resp = await fetch(`/api/project/status?${projectPathParam()}`);
+  const resp = await fetch(`/api/project/status?project_name=${encodeURIComponent(state.projectPath)}`);
   if (resp.ok) {
     const newData = await resp.json();
     state.pipeline = newData;
     renderAll();
-    // 提交后或有进行中任务时确保轮询在跑
     if (hasSubmittedTasks()) startPolling();
   }
 }
 
 // ── 设置弹窗 ──
-const SETTINGS_SECRET_FIELDS = [
-  { key: 'vidu_api_key', inputId: 'set-vidu', hasKey: '_has_vidu', placeholder: '输入 Vidu API Key' },
-  { key: 'wetoken_api_key', inputId: 'set-wetoken', hasKey: '_has_wetoken', placeholder: '输入 Wetoken API Key' },
-  { key: 'idealab_api_key', inputId: 'set-idealab', hasKey: '_has_idealab', placeholder: '输入 ideaLAB API Key' },
-  { key: 'gh_token', inputId: 'set-github-token', placeholder: '输入 GitHub Token' },
-];
-
-function getSettingsClearButton(key) {
-  return document.querySelector(`[data-setting-clear="${key}"]`);
-}
-
-function setSettingsClearState(key, enabled, cleared = false) {
-  const btn = getSettingsClearButton(key);
-  if (!btn) return;
-  btn.disabled = !enabled;
-  btn.dataset.cleared = cleared ? 'true' : 'false';
-  btn.setAttribute('aria-pressed', cleared ? 'true' : 'false');
-}
-
-function markSettingForClear(key) {
-  const field = SETTINGS_SECRET_FIELDS.find(item => item.key === key);
-  if (!field) return;
-  const input = document.getElementById(field.inputId);
-  if (input) {
-    input.value = '';
-    input.placeholder = '保存后清空';
-  }
-  setSettingsClearState(key, true, true);
-}
-
 async function openSettings() {
   try {
     const resp = await fetch('/api/settings');
     const s = await resp.json();
-    SETTINGS_SECRET_FIELDS.forEach(field => {
-      const input = document.getElementById(field.inputId);
-      const hasValue = field.key === 'gh_token' ? Boolean(s.gh_token) : Boolean(s[field.hasKey]);
-      if (input) {
-        input.value = '';
-        input.placeholder = hasValue ? s[field.key] : field.placeholder;
-      }
-      setSettingsClearState(field.key, hasValue, false);
-    });
+    document.getElementById('set-vidu').value = '';
+    document.getElementById('set-vidu').placeholder = s._has_vidu ? s.vidu_api_key : '输入 Vidu API Key';
+    document.getElementById('set-wetoken').value = '';
+    document.getElementById('set-wetoken').placeholder = s._has_wetoken ? s.wetoken_api_key : '输入 Wetoken API Key';
+    document.getElementById('set-idealab').value = '';
+    document.getElementById('set-idealab').placeholder = s._has_idealab ? s.idealab_api_key : '输入 ideaLAB API Key';
     document.getElementById('set-idealab-url').value = s.idealab_base_url || '';
-    document.getElementById('set-github-owner').value = s.gh_owner || '';
-    document.getElementById('set-github-repo').value = s.gh_repo || '';
   } catch(e) {}
   document.getElementById('settings-overlay').classList.add('visible');
 }
-
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('visible');
-}
-
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('visible'); }
 async function saveSettings() {
   const body = {};
+  const vidu = document.getElementById('set-vidu').value.trim();
+  const wetoken = document.getElementById('set-wetoken').value.trim();
+  const idealab = document.getElementById('set-idealab').value.trim();
   const url = document.getElementById('set-idealab-url').value.trim();
-  const githubOwner = document.getElementById('set-github-owner').value.trim();
-  const githubRepo = document.getElementById('set-github-repo').value.trim();
-  SETTINGS_SECRET_FIELDS.forEach(field => {
-    const value = document.getElementById(field.inputId).value.trim();
-    const clearBtn = getSettingsClearButton(field.key);
-    if (value) body[field.key] = value;
-    else if (clearBtn?.dataset.cleared === 'true') body[field.key] = '';
-  });
+  if (vidu) body.vidu_api_key = vidu;
+  if (wetoken) body.wetoken_api_key = wetoken;
+  if (idealab) body.idealab_api_key = idealab;
   if (url) body.idealab_base_url = url;
-  body.gh_owner = githubOwner;
-  body.gh_repo = githubRepo;
   try {
-    const resp = await fetch('/api/settings', {
-      method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    if (resp.ok) { closeSettings(); showToast('设置已保存', 'success'); }
-    else {
-      let detail = resp.status;
-      try { const e = await resp.json(); detail = e.detail || JSON.stringify(e); } catch(_){}
-      showToast('保存失败：' + detail, 'error');
-    }
-  } catch(e) { showToast('保存失败：' + e.message, 'error'); }
+    const resp = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    if (resp.ok) { closeSettings(); alert('设置已保存'); }
+    else { let detail = resp.status; try { const e = await resp.json(); detail = e.detail || JSON.stringify(e); } catch(_){} alert('保存失败：' + detail); }
+  } catch(e) { alert('保存失败：' + e.message); }
 }
 
 // ── 助手面板 ──
-function openAgentPanel() {
-  const panel = document.getElementById('agent-panel');
-  panel.classList.add('open');
-  panel.setAttribute('aria-hidden', 'false');
-  document.getElementById('agent-fab').classList.add('hidden');
-}
-function closeAgentPanel() {
-  const panel = document.getElementById('agent-panel');
-  panel.classList.remove('open');
-  panel.setAttribute('aria-hidden', 'true');
-  document.getElementById('agent-fab').classList.remove('hidden');
-}
-function clearAgentHistory() {
-  state.chatHistory = [];
-  document.getElementById('agent-messages').replaceChildren();
-}
+function openAgentPanel() { document.getElementById('agent-panel').classList.add('open'); document.getElementById('agent-fab').classList.add('hidden'); }
+function closeAgentPanel() { document.getElementById('agent-panel').classList.remove('open'); document.getElementById('agent-fab').classList.remove('hidden'); }
+function clearAgentHistory() { state.chatHistory = []; document.getElementById('agent-messages').innerHTML = ''; }
+
+document.getElementById('agent-send').onclick = sendAgentMessage;
+document.getElementById('agent-input').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); } };
 
 async function sendAgentMessage() {
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
   if (!msg || !state.projectPath) return;
-  input.value = '';
-  input.disabled = true;
-  document.getElementById('agent-send').disabled = true;
-
+  input.value = ''; input.disabled = true; document.getElementById('agent-send').disabled = true;
   appendAgentMsg('user', msg);
   state.chatHistory.push({role: 'user', content: msg});
-
   const thinkingEl = appendAgentThinking();
-
   try {
     const resp = await fetch('/api/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        project_path: state.projectPath,
-        message: msg,
-        history: state.chatHistory.slice(-20),
-        current_scene_key: state.selectedScene,
-      })
+      body: JSON.stringify({ project_name: state.projectPath, message: msg, history: state.chatHistory.slice(-20), current_scene_key: state.selectedScene })
     });
     const data = await resp.json();
     thinkingEl.remove();
-
-    for (const t of (data.tool_results || [])) {
-      appendAgentTool(t.label, t.ok !== false);
-    }
-
-    if (data.reply) {
-      appendAgentMsg('assistant', data.reply);
-      state.chatHistory.push({role: 'assistant', content: data.reply});
-    }
-
+    for (const t of (data.tool_results || [])) appendAgentTool(t.label, t.ok !== false);
+    if (data.reply) { appendAgentMsg('assistant', data.reply); state.chatHistory.push({role: 'assistant', content: data.reply}); }
     if (data.has_writes) await refreshStatus();
-  } catch(e) {
-    thinkingEl.remove();
-    appendAgentMsg('assistant', '请求失败：' + e.message);
-  }
-
-  input.disabled = false;
-  document.getElementById('agent-send').disabled = false;
-  input.focus();
+  } catch(e) { thinkingEl.remove(); appendAgentMsg('assistant', '请求失败：' + e.message); }
+  input.disabled = false; document.getElementById('agent-send').disabled = false; input.focus();
 }
 
 function appendAgentMsg(role, text) {
@@ -2123,72 +1311,49 @@ function appendAgentMsg(role, text) {
   const div = document.createElement('div');
   div.className = role === 'user' ? 'amsg-user' : 'amsg-assistant';
   div.textContent = text;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  lucide.createIcons();
-  return div;
+  container.appendChild(div); container.scrollTop = container.scrollHeight; lucide.createIcons(); return div;
 }
-
 function appendAgentTool(label, ok) {
   const container = document.getElementById('agent-messages');
   const div = document.createElement('div');
   div.className = 'amsg-tool' + (ok ? ' ok' : ' fail');
-  const dot = document.createElement('span');
-  dot.className = 'tool-dot';
-  const text = document.createElement('span');
-  text.textContent = label;
-  div.append(dot, text);
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  lucide.createIcons();
+  div.innerHTML = `<span class="tool-dot"></span><span>${label}</span>`;
+  container.appendChild(div); container.scrollTop = container.scrollHeight;
 }
-
 function appendAgentThinking() {
   const container = document.getElementById('agent-messages');
   const div = document.createElement('div');
   div.className = 'amsg-thinking';
-  const dots = document.createElement('span');
-  dots.className = 'dots';
-  for (let i = 0; i < 3; i++) {
-    const dot = document.createElement('span');
-    dot.textContent = '●';
-    dots.appendChild(dot);
-  }
-  div.appendChild(dots);
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  return div;
+  div.innerHTML = `<span class="dots"><span>\u25CF</span><span>\u25CF</span><span>\u25CF</span></span>`;
+  container.appendChild(div); container.scrollTop = container.scrollHeight; return div;
 }
+
+// ── 阶段切换 ──
+document.querySelectorAll('.phase-tab').forEach(tab => {
+  tab.onclick = () => {
+    state.currentPhase = tab.dataset.phase;
+    state.selectedScene = null;
+    if (isBoardPhase()) {
+      const vers = getAvailableVersionKeys();
+      if (!state.activeBoardVersion || !vers.includes(state.activeBoardVersion)) {
+        state.activeBoardVersion = vers.length > 0 ? vers[0] : null;
+      }
+    }
+    renderAll();
+    if (state.currentPhase === 'templates' && !state.templateCache && state.projectPath) {
+      fetch(`/api/project/prompt-templates?project_name=${encodeURIComponent(state.projectPath)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) { state.templateCache = data; renderAll(); } })
+        .catch(() => {});
+    }
+  };
+});
 
 function showToast(msg, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = msg;
-  container.appendChild(el);
-  setTimeout(() => { el.remove(); }, duration);
-}
-
-let _confirmResolve = null;
-function confirmAction({title = '确认操作', message = '', confirmLabel = '确认'} = {}) {
-  const overlay = document.getElementById('confirm-overlay');
-  document.getElementById('confirm-title').textContent = title;
-  document.getElementById('confirm-message').textContent = message;
-  document.getElementById('confirm-ok-btn').textContent = confirmLabel;
-  overlay.classList.add('visible');
-  document.getElementById('confirm-cancel-btn').focus();
-  return new Promise(resolve => {
-    _confirmResolve = resolve;
-  });
-}
-
-function closeConfirm(result) {
-  const overlay = document.getElementById('confirm-overlay');
-  overlay.classList.remove('visible');
-  if (_confirmResolve) {
-    _confirmResolve(result);
-    _confirmResolve = null;
-  }
+  el.className = `toast ${type}`; el.textContent = msg;
+  container.appendChild(el); setTimeout(() => { el.remove(); }, duration);
 }
 
 function showError(msg) {
@@ -2196,258 +1361,186 @@ function showError(msg) {
   const detailPanel = document.getElementById('detail-panel');
   const emptyHint = document.getElementById('empty-hint');
   const toolbar = document.getElementById('batch-toolbar');
-  gridArea.classList.remove('visible');
-  detailPanel.classList.remove('visible');
-  toolbar.classList.remove('visible');
-  emptyHint.style.display = 'none';
+  gridArea.classList.remove('visible'); detailPanel.classList.remove('visible');
+  toolbar.classList.remove('visible'); emptyHint.style.display = 'none';
   detailPanel.classList.add('visible');
-  const error = document.createElement('div');
-  error.className = 'error-banner';
-  error.textContent = msg;
-  detailPanel.replaceChildren(error);
+  detailPanel.innerHTML = `<div class="error-banner">${msg}</div>`;
+}
+
+// ── 模板编辑器 ──
+// 模板列表：角色/场景/道具固定；故事板/视频按版本动态生成
+function getTemplateTypes() {
+  const fixed = [
+    { key: 'character', label: '角色' },
+    { key: 'scene', label: '场景' },
+    { key: 'prop', label: '道具' },
+  ];
+  const vers = getAvailableVersionKeys();
+  const dynamic = [];
+  for (const v of vers) {
+    dynamic.push({ key: `storyboard_${v}`, label: `故事板 ${v}` });
+  }
+  for (const v of vers) {
+    dynamic.push({ key: `video_${v}`, label: `视频 ${v}` });
+  }
+  return [...fixed, ...dynamic];
+}
+
+function renderTemplateEditor(container) {
+  const types = getTemplateTypes();
+  // 若当前 templateType 不在列表中则重置
+  if (!types.find(t => t.key === state.templateType)) state.templateType = 'character';
+
+  container.innerHTML = `
+    <div class="template-editor-wrap">
+      <h2>提示词模板</h2>
+      <div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-3);">
+        <select class="template-type-select" id="tmpl-type-select" style="flex:1">
+          ${types.map(t => `<option value="${t.key}"${state.templateType === t.key ? ' selected' : ''}>${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <textarea class="template-textarea" id="tmpl-textarea" placeholder="加载中..."></textarea>
+      <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3);">
+        <button id="tmpl-reset-btn" style="flex:1;background:var(--bg-muted);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;padding:var(--space-2) var(--space-3);">重置默认</button>
+        <button id="tmpl-save-btn" style="flex:1;background:var(--accent);border:none;border-radius:var(--radius-sm);color:var(--text-on-accent);cursor:pointer;padding:var(--space-2) var(--space-3);">保存</button>
+      </div>
+      <div id="tmpl-toast" style="display:none;margin-top:var(--space-2);text-align:center;color:var(--success);font-size:var(--text-sm);"></div>
+    </div>`;
+
+  const typeSelectEl = document.getElementById('tmpl-type-select');
+  const textareaEl = document.getElementById('tmpl-textarea');
+  const resetBtn = document.getElementById('tmpl-reset-btn');
+  const saveBtn = document.getElementById('tmpl-save-btn');
+  const toastEl = document.getElementById('tmpl-toast');
+
+  function getCurrentText() {
+    if (!state.templateCache) return '';
+    return state.templateCache[state.templateType] || '';
+  }
+  function showToastMsg(msg) { toastEl.textContent = msg; toastEl.style.display = ''; setTimeout(() => { toastEl.style.display = 'none'; }, 2000); }
+
+  async function loadTemplates() {
+    try {
+      const resp = await fetch(`/api/project/prompt-templates?project_name=${encodeURIComponent(state.projectPath)}`);
+      if (!resp.ok) throw new Error('加载失败');
+      state.templateCache = await resp.json();
+      textareaEl.value = getCurrentText();
+      textareaEl.placeholder = '（无内容）';
+    } catch(e) { textareaEl.value = ''; textareaEl.placeholder = '加载失败'; }
+  }
+
+  typeSelectEl.addEventListener('change', () => {
+    state.templateType = typeSelectEl.value;
+    textareaEl.value = getCurrentText();
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    try {
+      const resp = await fetch('/api/project/prompt-templates', {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({project_path: state.projectPath, updates: {[state.templateType]: textareaEl.value}})
+      });
+      if (!resp.ok) throw new Error('保存失败');
+      if (!state.templateCache) state.templateCache = {};
+      state.templateCache[state.templateType] = textareaEl.value;
+      showToastMsg('已保存');
+    } catch(e) { showError('保存失败：' + e.message); }
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    if (!confirm('确定要重置为默认模板吗？')) return;
+    try {
+      const resp = await fetch(`/api/project/prompt-templates?project_name=${encodeURIComponent(state.projectPath)}&defaults=true`);
+      if (!resp.ok) throw new Error('获取默认失败');
+      const defaults = await resp.json();
+      // 默认值里 storyboard_v1/video_v1 对应 storyboard/video
+      let defText = defaults[state.templateType] || '';
+      // 兼容：若是 storyboard_v1 → 取 defaults.storyboard_v1 或 defaults.storyboard
+      if (!defText && state.templateType.startsWith('storyboard_')) defText = defaults['storyboard_v1'] || defaults['storyboard'] || '';
+      if (!defText && state.templateType.startsWith('video_')) defText = defaults['video_v1'] || defaults['video'] || '';
+      const putResp = await fetch('/api/project/prompt-templates', {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({project_path: state.projectPath, updates: {[state.templateType]: defText}})
+      });
+      if (!putResp.ok) throw new Error('写入失败');
+      if (!state.templateCache) state.templateCache = {};
+      state.templateCache[state.templateType] = defText;
+      textareaEl.value = defText;
+      showToastMsg('已重置为默认');
+    } catch(e) { showError('重置失败：' + e.message); }
+  });
+
+  loadTemplates();
 }
 
 // ── 导入对话框 ──
-let _importParsedData = null;  // 解析预览结果缓存
-
+let _importParsedData = null;
 async function openImportDialog() {
   _importParsedData = null;
   document.getElementById('import-preview').style.display = 'none';
-  document.getElementById('import-error').classList.add('hidden');
+  document.getElementById('import-error').style.display = 'none';
   document.getElementById('import-confirm-btn').disabled = true;
   document.getElementById('import-path').value = '';
   document.getElementById('import-name').value = '';
-
-  // 填充路径历史 datalist
   _fillPathHistory();
-
-  // 加载最近项目列表
   await _loadRecentProjects();
-
-  // 如果已有项目，允许取消
-  document.getElementById('import-cancel-btn').style.display =
-    state.projectPath ? '' : 'none';
-
+  document.getElementById('import-cancel-btn').style.display = state.projectPath ? '' : 'none';
   document.getElementById('import-overlay').classList.add('visible');
 }
-
-function closeImportDialog() {
-  document.getElementById('import-overlay').classList.remove('visible');
-}
-
-function _readPathHistory() {
-  try {
-    const raw = localStorage.getItem('manhua_path_history');
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(path => typeof path === 'string' && path.trim()).slice(0, 10);
-  } catch(e) {
-    try { localStorage.removeItem('manhua_path_history'); } catch(_) {}
-    return [];
-  }
-}
-
-function _fillPathHistory() {
-  const history = _readPathHistory();
-  const dl = document.getElementById('import-path-history');
-  dl.replaceChildren();
-  for (const path of history) {
-    const option = document.createElement('option');
-    option.value = path;
-    dl.appendChild(option);
-  }
-}
-
-function _savePathHistory(path) {
-  const normalizedPath = path.trim();
-  if (!normalizedPath) return;
-  const history = [normalizedPath, ..._readPathHistory().filter(p => p !== normalizedPath)].slice(0, 10);
-  try {
-    localStorage.setItem('manhua_path_history', JSON.stringify(history));
-  } catch(e) {
-    // 路径历史只是便利功能，保存失败不应阻断项目导入。
-  }
-}
-
+function closeImportDialog() { document.getElementById('import-overlay').classList.remove('visible'); }
+function _fillPathHistory() { const history = JSON.parse(localStorage.getItem('manhua_path_history') || '[]'); document.getElementById('import-path-history').innerHTML = history.map(p => `<option value="${p}">`).join(''); }
+function _savePathHistory(path) { let history = JSON.parse(localStorage.getItem('manhua_path_history') || '[]'); history = [path, ...history.filter(p => p !== path)].slice(0, 10); localStorage.setItem('manhua_path_history', JSON.stringify(history)); }
 async function _loadRecentProjects() {
-  const list = document.getElementById('import-recent-list');
-  const section = document.getElementById('import-recent-section');
-  const loading = document.createElement('span');
-  loading.className = 'recent-loading';
-  loading.textContent = '加载中...';
-  list.replaceChildren(loading);
+  const list = document.getElementById('import-recent-list'); const section = document.getElementById('import-recent-section');
+  list.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">加载中...</span>';
   try {
-    const resp = await fetch('/api/project/list-recent');
-    const data = await resp.json();
-    if (!data.projects || data.projects.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
+    const resp = await fetch('/api/project/list-recent'); const data = await resp.json();
+    if (!data.projects || data.projects.length === 0) { section.style.display = 'none'; return; }
     section.style.display = '';
-    list.replaceChildren();
-    for (const project of data.projects) {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'recent-project-item';
-      item.addEventListener('click', () => { loadProject(project.path); closeImportDialog(); });
-      const name = document.createElement('span');
-      name.className = 'rp-name';
-      name.textContent = project.name;
-      const path = document.createElement('span');
-      path.className = 'rp-path';
-      path.title = project.path;
-      path.textContent = project.path;
-      item.append(name, path);
-      list.appendChild(item);
-    }
-  } catch(e) {
-    section.style.display = 'none';
-  }
+    list.innerHTML = data.projects.map(p => `<div class="recent-project-item" onclick="loadProject(${JSON.stringify(p.path)});closeImportDialog()"><span class="rp-name">${p.name}</span><span class="rp-path" title="${p.path}">${p.path}</span></div>`).join('');
+  } catch(e) { section.style.display = 'none'; }
   lucide.createIcons();
 }
-
-// 路径输入时自动填充项目名
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('import-path').addEventListener('input', function() {
-    const p = this.value.trim();
-    if (!p) return;
+    const p = this.value.trim(); if (!p) return;
     const name = p.split(/[/\\]/).filter(Boolean).pop() || '';
     const nameInput = document.getElementById('import-name');
     if (!nameInput.dataset.userEdited) nameInput.value = name;
   });
-  document.getElementById('import-name').addEventListener('input', function() {
-    this.dataset.userEdited = this.value ? '1' : '';
-  });
+  document.getElementById('import-name').addEventListener('input', function() { this.dataset.userEdited = this.value ? '1' : ''; });
 });
 
 async function doParsePreview() {
   const inputDir = document.getElementById('import-path').value.trim();
   const projectName = document.getElementById('import-name').value.trim();
-  const errDiv = document.getElementById('import-error');
-  const previewDiv = document.getElementById('import-preview');
-  const confirmBtn = document.getElementById('import-confirm-btn');
-
-  errDiv.classList.add('hidden');
-  previewDiv.style.display = 'none';
-  confirmBtn.disabled = true;
-  _importParsedData = null;
-
-  if (!inputDir) { errDiv.textContent = '请输入目录路径'; errDiv.classList.remove('hidden'); return; }
-  if (!projectName) { errDiv.textContent = '请输入项目名称'; errDiv.classList.remove('hidden'); return; }
-
-  const parseBtn = document.getElementById('import-parse-btn');
-  parseBtn.disabled = true;
-  parseBtn.textContent = '解析中...';
-
+  const errDiv = document.getElementById('import-error'); const previewDiv = document.getElementById('import-preview'); const confirmBtn = document.getElementById('import-confirm-btn');
+  errDiv.style.display = 'none'; previewDiv.style.display = 'none'; confirmBtn.disabled = true; _importParsedData = null;
+  if (!inputDir) { errDiv.textContent = '请输入目录路径'; errDiv.style.display = ''; return; }
+  if (!projectName) { errDiv.textContent = '请输入项目名称'; errDiv.style.display = ''; return; }
+  const parseBtn = document.getElementById('import-parse-btn'); parseBtn.disabled = true; parseBtn.textContent = '解析中...';
   try {
-    const resp = await fetch('/api/project/parse', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({input_dir: inputDir, project_name: projectName})
-    });
+    const resp = await fetch('/api/project/parse', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input_dir: inputDir, project_name: projectName}) });
     const data = await resp.json();
-    if (!resp.ok) {
-      errDiv.textContent = data.detail || '解析失败';
-      errDiv.classList.remove('hidden');
-      return;
-    }
-    _importParsedData = data;
-    const s = data.stats;
-    previewDiv.replaceChildren();
-    const title = document.createElement('strong');
-    title.className = 'import-preview-title';
-    title.textContent = '解析完成';
-    const counts = document.createElement('div');
-    counts.textContent = `角色：${s.characters} 个　场景：${s.scenes} 个　道具：${s.props} 个　故事板条目：${s.storyboards} 个`;
-    const path = document.createElement('span');
-    path.className = 'import-preview-path';
-    path.textContent = `pipeline.json 已写入：${data.input_dir}`;
-    previewDiv.append(title, document.createElement('br'), counts, path);
-    previewDiv.style.display = '';
-    confirmBtn.disabled = false;
-    lucide.createIcons();
-  } catch(e) {
-    errDiv.textContent = '请求失败：' + e.message;
-    errDiv.classList.remove('hidden');
-  } finally {
-    parseBtn.disabled = false;
-    parseBtn.textContent = '解析预览';
-  }
+    if (!resp.ok) { errDiv.textContent = data.detail || '解析失败'; errDiv.style.display = ''; return; }
+    _importParsedData = data; const s = data.stats;
+    // 显示各版本场景数
+    const verInfo = s.storyboard_versions
+      ? Object.entries(s.storyboard_versions).map(([v, n]) => `${v}:${n}场景`).join('  ')
+      : `${s.storyboards} 场景`;
+    previewDiv.innerHTML = `<strong style="color:var(--accent)">解析完成</strong><br>角色：${s.characters} 个  场景：${s.scenes} 个  道具：${s.props} 个<br>故事板：${verInfo}<br><span style="color:var(--text-muted);font-size:11px">pipeline.json 已写入：${data.input_dir}</span>`;
+    previewDiv.style.display = ''; confirmBtn.disabled = false;
+  } catch(e) { errDiv.textContent = '请求失败：' + e.message; errDiv.style.display = ''; }
+  finally { parseBtn.disabled = false; parseBtn.textContent = '解析预览'; }
 }
-
-async function doImportConfirm() {
-  if (!_importParsedData) return;
-  _savePathHistory(_importParsedData.input_dir);
-  closeImportDialog();
-  await loadProject(_importParsedData.input_dir);
-}
+async function doImportConfirm() { if (!_importParsedData) return; _savePathHistory(_importParsedData.input_dir); closeImportDialog(); await loadProject(_importParsedData.input_dir); }
 
 function openLightbox(url) {
   let lb = document.getElementById('lightbox');
-  if (!lb) {
-    lb = document.createElement('div');
-    lb.id = 'lightbox';
-    const img = document.createElement('img');
-    img.id = 'lightbox-img';
-    img.alt = '预览大图';
-    lb.appendChild(img);
-    lb.addEventListener('click', () => lb.classList.remove('visible'));
-    document.body.appendChild(lb);
-  }
-  document.getElementById('lightbox-img').src = url;
-  lb.classList.add('visible');
+  if (!lb) { lb = document.createElement('div'); lb.id = 'lightbox'; lb.style = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;cursor:zoom-out;display:flex;align-items:center;justify-content:center;'; lb.innerHTML = '<img id="lightbox-img" style="max-width:90vw;max-height:90vh;border-radius:6px;">'; lb.onclick = () => lb.style.display = 'none'; document.body.appendChild(lb); }
+  document.getElementById('lightbox-img').src = url; lb.style.display = 'flex';
 }
 
-function bindStaticEvents() {
-  document.getElementById('project-meta').addEventListener('click', openImportDialog);
-  document.getElementById('settings-btn').addEventListener('click', openSettings);
-  document.getElementById('btn-batch-gen').addEventListener('click', batchGeneratePrompts);
-  document.getElementById('btn-batch-submit').addEventListener('click', batchSubmitAll);
-  document.getElementById('btn-batch-retry').addEventListener('click', batchRetryFailed);
-  document.getElementById('settings-overlay').addEventListener('click', event => {
-    if (event.target === event.currentTarget) closeSettings();
-  });
-  document.getElementById('settings-cancel-btn').addEventListener('click', closeSettings);
-  document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
-  document.querySelectorAll('.settings-clear-btn').forEach(btn => {
-    btn.addEventListener('click', () => markSettingForClear(btn.dataset.settingClear));
-  });
-  document.getElementById('import-cancel-btn').addEventListener('click', closeImportDialog);
-  document.getElementById('import-parse-btn').addEventListener('click', doParsePreview);
-  document.getElementById('import-confirm-btn').addEventListener('click', doImportConfirm);
-  document.getElementById('agent-clear').addEventListener('click', clearAgentHistory);
-  document.getElementById('agent-close').addEventListener('click', closeAgentPanel);
-  document.getElementById('agent-fab').addEventListener('click', openAgentPanel);
-  document.getElementById('agent-send').addEventListener('click', sendAgentMessage);
-  document.getElementById('agent-input').addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      sendAgentMessage();
-    }
-  });
-  document.querySelectorAll('.phase-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      state.currentPhase = tab.dataset.phase;
-      state.selectedScene = null;
-      renderAll();
-    });
-  });
-  document.getElementById('confirm-cancel-btn').addEventListener('click', () => closeConfirm(false));
-  document.getElementById('confirm-ok-btn').addEventListener('click', () => closeConfirm(true));
-  document.getElementById('confirm-overlay').addEventListener('click', event => {
-    if (event.target === event.currentTarget) closeConfirm(false);
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') {
-      if (document.getElementById('confirm-overlay').classList.contains('visible')) closeConfirm(false);
-      else if (document.getElementById('settings-overlay').classList.contains('visible')) closeSettings();
-      else if (document.getElementById('import-overlay').classList.contains('visible') && state.projectPath) closeImportDialog();
-      else if (document.getElementById('agent-panel').classList.contains('open')) closeAgentPanel();
-    }
-  });
-}
-
-bindStaticEvents();
 init();
 </script>
 </body>

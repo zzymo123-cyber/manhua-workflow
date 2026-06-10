@@ -1,16 +1,15 @@
 import asyncio
-import os
 import datetime
+import logging
 from pathlib import Path
 
 from api import pipeline as pl
 from api import vidu, wetoken
 from api.routes.settings import get_api_key
-from api.storyboard_versions import (
-    get_storyboard_outputs,
-    storyboard_image_filename,
-    sync_legacy_v1_from_output,
-)
+
+logger = logging.getLogger(__name__)
+
+_POLL_SUBMIT_TIMEOUT_MINUTES = 30
 
 _poll_task: asyncio.Task | None = None
 _running = False
@@ -28,6 +27,8 @@ async def stop():
     _running = False
     if _poll_task:
         _poll_task.cancel()
+    await vidu.close_async_client()
+    await wetoken.close_async_client()
 
 
 async def _poll_loop():
@@ -68,11 +69,67 @@ async def _scan_all_projects():
         await _process_submitted_tasks(project_dir, vidu_key, wetoken_key)
 
 
+# ── 通用轮询处理 ──
+
+
+async def _poll_vidu_item(item: dict, vidu_key: str, now: datetime.datetime,
+                           updated_at: str | None, task_id_field: str = "task_id") -> dict | None:
+    """轮询一个 Vidu submitted 任务，返回结果 dict 或 None（未变化）。
+    task_id_field: 资产用 "task_id"，故事板版本用 "board_task_id"。"""
+    if item.get("status") != "submitted" or not item.get(task_id_field):
+        return None
+    if _is_timeout(updated_at, now):
+        item["status"] = "failed"
+        item["error"] = "超时"
+        return {"status": "failed"}
+    result = await vidu.poll_task_async(vidu_key, item[task_id_field])
+    if result["status"] == "success":
+        item["status"] = "completed"
+        return {"status": "success", "image_url": result["image_url"]}
+    elif result["status"] == "failed":
+        item["status"] = "failed"
+        item["error"] = result["error"]
+        return {"status": "failed"}
+    return None  # pending
+
+
+async def _poll_wetoken_item(item: dict, wetoken_key: str, now: datetime.datetime,
+                              updated_at: str | None, project_dir: Path, scene_key: str) -> dict | None:
+    """轮询一个 Wetoken submitted 视频任务，返回结果 dict 或 None。"""
+    if item.get("video_status") != "submitted" or not item.get("video_task_id"):
+        return None
+    if _is_timeout(updated_at, now):
+        item["video_status"] = "failed"
+        item["error"] = "超时"
+        return {"status": "failed"}
+    result = await wetoken.poll_task_async(wetoken_key, item["video_task_id"])
+    if result["status"] == "completed":
+        item["video_status"] = "completed"
+        item["video_url"] = result["video_url"]
+        if result["video_url"]:
+            video_dir = project_dir / "videos" / scene_key
+            video_dir.mkdir(parents=True, exist_ok=True)
+            part_num = item.get("part", 0)
+            local_path = video_dir / f"part{part_num}.mp4"
+            if not local_path.exists():
+                try:
+                    await wetoken.download_video_async(result["video_url"], local_path)
+                except Exception:
+                    pass
+            if local_path.exists():
+                item["local_path"] = str(local_path.relative_to(project_dir))
+        return {"status": "completed"}
+    elif result["status"] == "failed":
+        item["video_status"] = "failed"
+        item["error"] = result["error"]
+        return {"status": "failed"}
+    return None
+
+
+# ── 主处理函数 ──
+
+
 async def _process_submitted_tasks(project_dir: Path, vidu_key: str, wetoken_key: str):
-    return await asyncio.to_thread(_process_submitted_tasks_sync, project_dir, vidu_key, wetoken_key)
-
-
-def _process_submitted_tasks_sync(project_dir: Path, vidu_key: str, wetoken_key: str):
     """处理一个项目里所有 submitted 状态的任务"""
     try:
         data = pl.read_pipeline(project_dir)
@@ -80,167 +137,74 @@ def _process_submitted_tasks_sync(project_dir: Path, vidu_key: str, wetoken_key:
         return
 
     changed = False
+    now = datetime.datetime.now()
+    updated_at = data.get("updated_at")
 
-    # 角色（Vidu 图片任务）
-    for name, info in data.get("assets", {}).get("characters", {}).items():
-        if info.get("status") == "submitted" and info.get("task_id"):
-            changed = _process_vidu_asset(project_dir, vidu_key, "characters", name, info, "characters") or changed
+    # 资产（角色/场景/道具）— 扁平字段
+    asset_categories = [
+        ("characters", "characters"),
+        ("scenes", "scenes_props"),
+        ("props", "scenes_props"),
+    ]
+    for cat_key, dir_name in asset_categories:
+        for name, asset in data.get("assets", {}).get(cat_key, {}).items():
+            result = await _poll_vidu_item(asset, vidu_key, now, updated_at)
+            if result:
+                if result["status"] == "success":
+                    await _download_and_update_asset_async(
+                        project_dir, dir_name, name, result["image_url"]
+                    )
+                    asset["result_url"] = str(Path(dir_name) / name / f"{name}.png")
+                changed = True
 
-    # 场景（scenes_props 目录下）
-    for name, info in data.get("assets", {}).get("scenes", {}).items():
-        if info.get("status") == "submitted" and info.get("task_id"):
-            changed = _process_vidu_asset(project_dir, vidu_key, "scenes_props", name, info, "scenes") or changed
-
-    # 道具
-    for name, info in data.get("assets", {}).get("props", {}).items():
-        if info.get("status") == "submitted" and info.get("task_id"):
-            changed = _process_vidu_asset(project_dir, vidu_key, "scenes_props", name, info, "props") or changed
-
-    # 故事板（Vidu 图片任务）
+    # 故事板版本 + 视频分段 — board_versions 模型
     for scene_key, board in data.get("storyboards", {}).items():
-        for output in get_storyboard_outputs(board, "v1"):
-            if output.get("board_status") == "submitted" and output.get("board_task_id"):
-                changed = _process_vidu_storyboard_output(project_dir, vidu_key, scene_key, board, output, mode="v1") or changed
-        for output in get_storyboard_outputs(board, "v2"):
-            if output.get("board_status") == "submitted" and output.get("board_task_id"):
-                changed = _process_vidu_storyboard_output(
-                    project_dir, vidu_key, scene_key, board, output, mode="v2", page_num=output.get("page", 1)
-                ) or changed
+        for bv in board.get("board_versions", []):
+            # 故事板图片（board_task_id 字段名）
+            result = await _poll_vidu_item(bv, vidu_key, now, updated_at, task_id_field="board_task_id")
+            if result:
+                if result["status"] == "success":
+                    await _download_and_update_storyboard_async(
+                        project_dir, scene_key, result["image_url"]
+                    )
+                changed = True
 
-    # 视频分段（Wetoken 任务）
-    for scene_key, board in data.get("storyboards", {}).items():
-        for output in get_storyboard_outputs(board, "v1"):
-            for part_info in output.get("video_parts", []):
-                if part_info.get("video_status") == "submitted" and part_info.get("video_task_id"):
-                    changed = _process_wetoken_video_part(project_dir, wetoken_key, scene_key, part_info) or changed
-            sync_legacy_v1_from_output(board)
-        for output in get_storyboard_outputs(board, "v2"):
-            for part_info in output.get("video_parts", []):
-                if part_info.get("video_status") == "submitted" and part_info.get("video_task_id"):
-                    changed = _process_wetoken_video_part(
-                        project_dir, wetoken_key, scene_key, part_info, filename_prefix=f"v2_p{output.get('page', 1)}_"
-                    ) or changed
+            # 视频分段
+            for vp in bv.get("video_parts", []):
+                result = await _poll_wetoken_item(
+                    vp, wetoken_key, now, updated_at, project_dir, scene_key
+                )
+                if result:
+                    changed = True
 
     if changed:
-        data["updated_at"] = datetime.datetime.now().isoformat()
+        data["updated_at"] = now.isoformat()
         pl.write_pipeline(project_dir, data)
 
 
-def _error_text(prefix: str, exc: Exception | str | None) -> str:
-    detail = str(exc or "未知错误")
-    return f"{prefix}: {detail}"
-
-
-def _process_vidu_asset(project_dir: Path, vidu_key: str, storage_category: str,
-                        name: str, info: dict, label: str) -> bool:
+def _is_timeout(updated_at: str | None, now: datetime.datetime) -> bool:
+    """检查 submitted 状态是否超时"""
+    if not updated_at:
+        return False
     try:
-        result = vidu.poll_task(vidu_key, info["task_id"])
-    except Exception as exc:
-        info["error"] = _error_text("轮询失败", exc)
-        return True
-
-    if result["status"] == "success":
-        try:
-            _download_and_update_asset(project_dir, storage_category, name, info["task_id"], result["image_url"])
-        except Exception as exc:
-            info["status"] = "failed"
-            info["error"] = _error_text("下载或写入失败", exc)
+        updated_time = datetime.datetime.fromisoformat(updated_at)
+        if (now - updated_time).total_seconds() > _POLL_SUBMIT_TIMEOUT_MINUTES * 60:
             return True
-        info["status"] = "completed"
-        info.pop("error", None)
-        return True
-    if result["status"] == "failed":
-        info["status"] = "failed"
-        info["error"] = result.get("error") or f"{label}任务失败"
-        return True
+    except Exception:
+        pass
     return False
 
 
-def _process_vidu_storyboard_output(
-    project_dir: Path,
-    vidu_key: str,
-    scene_key: str,
-    board: dict,
-    output: dict,
-    mode: str = "v1",
-    page_num: int | None = None,
-) -> bool:
-    try:
-        result = vidu.poll_task(vidu_key, output["board_task_id"])
-    except Exception as exc:
-        output["board_error"] = _error_text("轮询失败", exc)
-        if mode == "v1":
-            sync_legacy_v1_from_output(board)
-        return True
-
-    if result["status"] == "success":
-        try:
-            _download_and_update_storyboard(project_dir, scene_key, output, result["image_url"], mode=mode, page_num=page_num)
-        except Exception as exc:
-            output["board_status"] = "failed"
-            output["board_error"] = _error_text("下载失败", exc)
-            if mode == "v1":
-                sync_legacy_v1_from_output(board)
-            return True
-        output["board_status"] = "completed"
-        output.pop("board_error", None)
-        if mode == "v1":
-            sync_legacy_v1_from_output(board)
-        return True
-    if result["status"] == "failed":
-        output["board_status"] = "failed"
-        output["board_error"] = result.get("error") or "故事板任务失败"
-        if mode == "v1":
-            sync_legacy_v1_from_output(board)
-        return True
-    return False
-
-
-def _process_wetoken_video_part(project_dir: Path, wetoken_key: str, scene_key: str, part_info: dict,
-                                filename_prefix: str = "") -> bool:
-    try:
-        result = wetoken.poll_task(wetoken_key, part_info["video_task_id"])
-    except Exception as exc:
-        part_info["video_error"] = _error_text("轮询失败", exc)
-        return True
-
-    if result["status"] == "completed":
-        video_url = result.get("video_url")
-        if not video_url:
-            part_info["video_status"] = "failed"
-            part_info["video_error"] = "Wetoken 未返回视频 URL"
-            return True
-        part_info["video_status"] = "completed"
-        part_info["video_url"] = video_url
-        part_info.pop("video_error", None)
-        part_info.pop("video_download_error", None)
-        video_dir = project_dir / "videos" / scene_key
-        video_dir.mkdir(parents=True, exist_ok=True)
-        part_num = part_info.get("part", 0)
-        local_path = video_dir / f"{filename_prefix}part{part_num}.mp4"
-        if not local_path.exists():
-            try:
-                wetoken.download_video(video_url, local_path)
-            except Exception as exc:
-                part_info["video_download_error"] = _error_text("本地下载失败", exc)
-                return True
-        if local_path.exists():
-            part_info["local_path"] = str(local_path.relative_to(project_dir))
-        return True
-    if result["status"] == "failed":
-        part_info["video_status"] = "failed"
-        part_info["video_error"] = result.get("error") or "视频任务失败"
-        return True
-    return False
-
-
-def _download_and_update_asset(project_dir: Path, category: str, name: str, task_id: str, image_url: str):
-    """下载图片并更新 meta.json 的 primary_image"""
+async def _download_and_update_asset_async(project_dir: Path, category: str, name: str, image_url: str):
+    """下载图片并更新 meta.json"""
     asset_dir = project_dir / category / name
     filename = f"{name}.png"
     dest = asset_dir / filename
     if not dest.exists():
-        vidu.download_image(image_url, dest)
+        try:
+            await vidu.download_image_async(image_url, dest)
+        except Exception:
+            pass
     meta = pl.get_meta(project_dir, category, name) or {
         "name": name, "category": category,
         "primary_image": filename, "versions": [], "created_at": datetime.datetime.now().isoformat()
@@ -251,22 +215,13 @@ def _download_and_update_asset(project_dir: Path, category: str, name: str, task
     pl.write_meta(project_dir, category, name, meta)
 
 
-def _download_and_update_storyboard(project_dir: Path, scene_key: str, board: dict, image_url: str,
-                                    mode: str = "v1", page_num: int | None = None):
+async def _download_and_update_storyboard_async(project_dir: Path, scene_key: str, image_url: str):
     """下载故事板图片"""
     board_dir = project_dir / "storyboards" / scene_key
-    filename = storyboard_image_filename(scene_key, mode, page_num)
+    filename = f"{scene_key}.png"
     dest = board_dir / filename
     if not dest.exists():
-        vidu.download_image(image_url, dest)
-    meta = pl.get_meta(project_dir, "storyboards", scene_key) or {
-        "name": scene_key,
-        "category": "storyboards",
-        "primary_image": filename,
-        "versions": [],
-        "created_at": datetime.datetime.now().isoformat(),
-    }
-    if not meta.get("primary_image"):
-        meta["primary_image"] = filename
-    meta["updated_at"] = datetime.datetime.now().isoformat()
-    pl.write_meta(project_dir, "storyboards", scene_key, meta)
+        try:
+            await vidu.download_image_async(image_url, dest)
+        except Exception:
+            pass

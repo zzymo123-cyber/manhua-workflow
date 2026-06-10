@@ -6,8 +6,6 @@ import time
 import httpx
 from pathlib import Path
 
-from api.errors import describe_exception, describe_remote_error
-
 try:
     from PIL import Image
 except ImportError:
@@ -83,20 +81,14 @@ def _push_to_github(local_path: str, filename: str) -> str:
 
 def upload_asset(api_key: str, public_url: str, name: str) -> str:
     """上传图片到 Wetoken 素材 API，返回 asset_id"""
-    try:
-        resp = httpx.post(
-            f"{ASSET_URL}/createMedia",
-            headers=_headers(api_key),
-            json={"url": public_url, "name": name, "assetType": "Image",
-                  "moderation": {"Strategy": "Skip"}},
-            timeout=30,
-        )
-        if not resp.is_success:
-            raise WetokenError(describe_remote_error("Wetoken", resp.status_code, _response_detail(resp)))
-    except WetokenError:
-        raise
-    except Exception as e:
-        raise WetokenError(describe_exception("Wetoken", e))
+    resp = httpx.post(
+        f"{ASSET_URL}/createMedia",
+        headers=_headers(api_key),
+        json={"url": public_url, "name": name, "assetType": "Image",
+              "moderation": {"Strategy": "Skip"}},
+        timeout=30,
+    )
+    resp.raise_for_status()
     data = resp.json()
     return data["Result"]["Id"]
 
@@ -241,12 +233,13 @@ def submit_video_task(
         "generate_audio": generate_audio,
         "watermark": watermark,
     }
-    try:
-        resp = httpx.post(BASE_URL, headers=_headers(api_key), json=body, timeout=60)
-    except Exception as e:
-        raise WetokenError(describe_exception("Wetoken", e))
+    resp = httpx.post(BASE_URL, headers=_headers(api_key), json=body, timeout=60)
     if not resp.is_success:
-        raise WetokenError(describe_remote_error("Wetoken", resp.status_code, _response_detail(resp)))
+        try:
+            err_detail = resp.json()
+        except Exception:
+            err_detail = resp.text
+        raise WetokenError(f"Wetoken API {resp.status_code}: {err_detail}")
     data = resp.json()
     if "id" not in data:
         raise WetokenError(f"Unexpected response: {data}")
@@ -258,13 +251,8 @@ def poll_task(api_key: str, task_id: str) -> dict:
     查询视频任务状态。
     返回: {"status": "pending"|"completed"|"failed", "video_url": str|None, "error": str|None}
     """
-    try:
-        resp = httpx.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
-        if not resp.is_success:
-            return {"status": "failed", "video_url": None,
-                    "error": describe_remote_error("Wetoken", resp.status_code, _response_detail(resp))}
-    except Exception as e:
-        return {"status": "failed", "video_url": None, "error": describe_exception("Wetoken", e)}
+    resp = httpx.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
+    resp.raise_for_status()
     data = resp.json()
     status = data.get("status", "")
 
@@ -286,8 +274,67 @@ def download_video(url: str, dest_path: Path) -> None:
         f.write(resp.content)
 
 
-def _response_detail(resp) -> str:
-    try:
-        return json.dumps(resp.json(), ensure_ascii=False)
-    except Exception:
-        return resp.text[:300]
+# ── 异步版本 ──
+
+_async_client: httpx.AsyncClient | None = None
+
+
+async def _get_async_client() -> httpx.AsyncClient:
+    global _async_client
+    if _async_client is None or _async_client.is_closed:
+        _async_client = httpx.AsyncClient(trust_env=False, timeout=120)
+    return _async_client
+
+
+async def close_async_client():
+    global _async_client
+    if _async_client and not _async_client.is_closed:
+        await _async_client.aclose()
+    _async_client = None
+
+
+async def poll_task_async(api_key: str, task_id: str) -> dict:
+    """异步查询视频任务状态"""
+    client = await _get_async_client()
+    resp = await client.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    status = data.get("status", "")
+
+    if status == "succeeded":
+        video_url = data.get("content", {}).get("video_url")
+        return {"status": "completed", "video_url": video_url, "error": None}
+    elif status in ("failed", "expired"):
+        error = data.get("error", {}).get("message", status)
+        return {"status": "failed", "video_url": None, "error": str(error)}
+    else:
+        return {"status": "pending", "video_url": None, "error": None}
+
+
+async def download_video_async(url: str, dest_path: Path) -> None:
+    """异步下载视频到本地"""
+    client = await _get_async_client()
+    resp = await client.get(url, timeout=120, follow_redirects=True)
+    resp.raise_for_status()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest_path, "wb") as f:
+        f.write(resp.content)
+
+
+async def submit_video_task_async(
+    api_key: str,
+    prompt: str,
+    image_paths: list[str],
+    duration: int = 10,
+    ratio: str = "16:9",
+    resolution: str = "720p",
+    generate_audio: bool = True,
+    watermark: bool = False,
+    project_dir: Path | None = None,
+) -> str:
+    """异步提交视频生成任务（用 to_thread 包装同步上传链路）"""
+    import asyncio
+    return await asyncio.to_thread(
+        submit_video_task, api_key, prompt, image_paths,
+        duration, ratio, resolution, generate_audio, watermark, project_dir,
+    )

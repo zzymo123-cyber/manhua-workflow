@@ -1,15 +1,7 @@
 import base64
-import io
 import time
 import httpx
 from pathlib import Path
-
-from api.errors import describe_exception, describe_remote_error
-
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
 
 VIDU_BASE = "https://api.vidu.cn"
 SUBMIT_URL = f"{VIDU_BASE}/ent/v2/reference2image"
@@ -38,17 +30,6 @@ def _headers(api_key: str) -> dict:
 
 
 def _img_to_data_uri(path: str) -> str:
-    if Image is not None:
-        try:
-            img = Image.open(path).convert("RGB")
-            img.thumbnail((1024, 1024), Image.LANCZOS)
-            buf = io.BytesIO()
-            img.save(buf, "JPEG", quality=88)
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            return f"data:image/jpeg;base64,{b64}"
-        except Exception:
-            pass
-
     ext = path.rsplit(".", 1)[-1].lower()
     mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(ext, "image/png")
     with open(path, "rb") as f:
@@ -83,10 +64,7 @@ def submit_image_task(
             for p in image_paths
         ]
 
-    try:
-        resp = _request("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
-    except Exception as e:
-        raise ViduError(describe_exception("Vidu", e))
+    resp = _request("POST", SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
     if not resp.is_success:
         try:
             err = resp.json()
@@ -94,8 +72,7 @@ def submit_image_task(
             message = err.get("message", "")
         except Exception:
             reason, message = "", resp.text[:200]
-        detail = f"{reason}: {message}" if reason else message
-        raise ViduError(describe_remote_error("Vidu", resp.status_code, detail))
+        raise ViduError(f"{reason}: {message}" if reason else f"HTTP {resp.status_code}: {message}")
 
     task_id = resp.json().get("task_id")
     if not task_id:
@@ -144,3 +121,91 @@ def download_image(url: str, dest_path: Path) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     with open(dest_path, "wb") as f:
         f.write(resp.content)
+
+
+# ── 异步版本 ──
+
+_async_client: httpx.AsyncClient | None = None
+
+
+async def _get_async_client() -> httpx.AsyncClient:
+    global _async_client
+    if _async_client is None or _async_client.is_closed:
+        _async_client = httpx.AsyncClient(trust_env=False, timeout=120)
+    return _async_client
+
+
+async def close_async_client():
+    global _async_client
+    if _async_client and not _async_client.is_closed:
+        await _async_client.aclose()
+    _async_client = None
+
+
+async def poll_task_async(api_key: str, task_id: str) -> dict:
+    """异步轮询任务状态"""
+    url = POLL_URL.format(task_id=task_id)
+    client = await _get_async_client()
+    resp = await client.get(url, headers=_headers(api_key), timeout=30)
+    if not resp.is_success:
+        return {"status": "pending", "image_url": None, "error": None}
+
+    data = resp.json()
+    state = data.get("state", "unknown")
+
+    if state == "success":
+        creations = data.get("creations", [])
+        image_url = creations[0]["url"] if creations else None
+        return {"status": "success", "image_url": image_url, "error": None}
+    elif state in ("failed", "error"):
+        return {"status": "failed", "image_url": None, "error": data.get("err_code", "unknown")}
+    else:
+        return {"status": "pending", "image_url": None, "error": None}
+
+
+async def download_image_async(url: str, dest_path: Path) -> None:
+    """异步下载图片到本地"""
+    client = await _get_async_client()
+    resp = await client.get(url, follow_redirects=True, timeout=120)
+    resp.raise_for_status()
+    dest_path = Path(dest_path)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest_path, "wb") as f:
+        f.write(resp.content)
+
+
+async def submit_image_task_async(
+    api_key: str,
+    prompt: str,
+    image_paths: list,
+    ratio: str = "16:9",
+) -> dict:
+    """异步提交图片生成任务"""
+    aspect_ratio = RATIO_TO_ASPECT.get(ratio, "16:9")
+    body = {
+        "model": "viduimage-2",
+        "prompt": prompt,
+        "resolution": "2K",
+        "quality": "high",
+        "moderation": "disabled",
+        "aspect_ratio": aspect_ratio,
+    }
+    if image_paths:
+        body["images"] = [
+            p if p.startswith("http") else _img_to_data_uri(p)
+            for p in image_paths
+        ]
+    client = await _get_async_client()
+    resp = await client.post(SUBMIT_URL, headers=_headers(api_key), json=body, timeout=60)
+    if not resp.is_success:
+        try:
+            err = resp.json()
+            reason = err.get("reason", "")
+            message = err.get("message", "")
+        except Exception:
+            reason, message = "", resp.text[:200]
+        raise ViduError(f"{reason}: {message}" if reason else f"HTTP {resp.status_code}: {message}")
+    task_id = resp.json().get("task_id")
+    if not task_id:
+        raise ViduError(f"API 未返回 task_id：{resp.text[:200]}")
+    return {"task_id": task_id}
